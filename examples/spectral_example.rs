@@ -68,12 +68,12 @@ fn windowed_fft_example() {
     let mut window_buffer = vec![0.0; 1024];
     kaiser.fill(&mut window_buffer);
     
-    let mut windowed_fft_custom = WindowedFFT::<f32>::with_window(1024, |i, size| {
-        let r = (i as f32 + 0.5) / size as f32;
-        let arg = (1.0 - (2.0 * r - 1.0).powi(2)).sqrt();
-        let beta = 6.0;
-        let bessel0_beta = 403.4287934927351; // Precomputed I0(6.0)
-        let bessel0_beta_arg = (1.0 + (beta * arg).powi(2) / 4.0).powi(4);
+    let mut windowed_fft_custom = WindowedFFT::<f32>::with_window(1024, |i| {
+        let r = (i + 0.5) / 1024.0;
+        let arg = (1.0 - (2.0 * r - 1.0).powi(2) as f32).sqrt();
+        let beta = 6.0_f32;
+        let bessel0_beta = 403.4287934927351_f32; // Precomputed I0(6.0)
+        let bessel0_beta_arg = (1.0 + (beta * arg).powi(2) / 4.0_f32).powi(4);
         bessel0_beta_arg / bessel0_beta
     }, 0.0, 0);
     

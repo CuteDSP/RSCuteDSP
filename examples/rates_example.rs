@@ -108,7 +108,8 @@ fn oversampling_example() {
     
     let mut output = vec![0.0; input.len()];
     
-    oversampler.down_channel(0, &mut output, output.len());
+    let output_len = output.len();
+    oversampler.down_channel(0, &mut output, output_len);
     
     // Rest of the code remains the same...
     println!("\nDownsampled signal (first 10 samples):");

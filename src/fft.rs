@@ -6,16 +6,18 @@
 #![allow(unused_imports)]
 
 #[cfg(feature = "std")]
-use std::{f32::consts::PI, vec::Vec};
+use std::{f64::consts::PI, vec::Vec};
+
 
 #[cfg(not(feature = "std"))]
-use core::f32::consts::PI;
+use core::f64::consts::PI;
 
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 use alloc::vec::Vec;
 
 use num_complex::Complex;
 use num_traits::Float;
+use num_traits::FromPrimitive;
 
 use crate::perf;
 
@@ -126,7 +128,7 @@ pub struct SimpleFFT<T: Float> {
     working: Vec<Complex<T>>,
 }
 
-impl<T: Float + From<f32>> SimpleFFT<T> {
+impl<T: Float + FromPrimitive> SimpleFFT<T> {
     /// Create a new FFT with the specified size
     pub fn new(size: usize) -> Self {
         let mut result = Self {
@@ -141,7 +143,7 @@ impl<T: Float + From<f32>> SimpleFFT<T> {
     pub fn resize(&mut self, size: usize) {
         self.twiddles.resize(size * 3 / 4, Complex::new(T::zero(), T::zero()));
         for i in 0..self.twiddles.len() {
-            let twiddle_phase = -<T as From<f32>>::from(2.0) * <T as From<f32>>::from(PI) * <T as From<f32>>::from(i as f32) / <T as From<f32>>::from(size as f32);
+            let twiddle_phase = -T::from_f64(2.0).unwrap() * T::from_f64(PI as f64).unwrap() * T::from_f64(i as f64).unwrap() / T::from_f64(size as f64).unwrap();
             self.twiddles[i] = Complex::new(
                 twiddle_phase.cos(),
                 twiddle_phase.sin(),
@@ -469,7 +471,7 @@ pub struct SimpleRealFFT<T: Float> {
     tmp_freq: Vec<Complex<T>>,
 }
 
-impl<T: Float + From<f32>> SimpleRealFFT<T> {
+impl<T: Float + num_traits::FromPrimitive> SimpleRealFFT<T> {
     /// Create a new real FFT with the specified size
     pub fn new(size: usize) -> Self {
         let mut result = Self {
@@ -589,7 +591,7 @@ pub struct Pow2FFT<T: Float> {
     tmp: Vec<Complex<T>>,
 }
 
-impl<T: Float + From<f32>> Pow2FFT<T> {
+impl<T: Float+ FromPrimitive> Pow2FFT<T> {
     /// Whether this FFT implementation is faster when given split-complex inputs
     pub const PREFERS_SPLIT: bool = true;
 
@@ -635,7 +637,7 @@ pub struct Pow2RealFFT<T: Float> {
     simple_real_fft: SimpleRealFFT<T>,
 }
 
-impl<T: Float + From<f32>> Pow2RealFFT<T> {
+impl<T: Float + FromPrimitive> Pow2RealFFT<T> {
     /// Whether this FFT implementation is faster when given split-complex inputs
     pub const PREFERS_SPLIT: bool = Pow2FFT::<T>::PREFERS_SPLIT;
 

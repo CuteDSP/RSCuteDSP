@@ -121,7 +121,7 @@ impl <T: Float> ApproximateConfinedGaussian<T> {
 }
 
 /// Forces STFT perfect-reconstruction on an existing window
-pub fn force_perfect_reconstruction<T: Float + From<f32>>(
+pub fn force_perfect_reconstruction<T: Float>(
     data: &mut [T],
     window_length: usize,
     interval: usize,
@@ -138,7 +138,7 @@ pub fn force_perfect_reconstruction<T: Float + From<f32>>(
         
         index = i;
         while index < window_length {
-            data[index] = data[index] * <T as From<f32>>::from(factor);
+            data[index] = data[index] * T::from(factor).unwrap();
             index += interval;
         }
     }

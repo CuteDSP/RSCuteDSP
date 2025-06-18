@@ -21,7 +21,7 @@ use alloc::vec::Vec;
 
 
 use num_complex::Complex;
-use num_traits::Float;
+use num_traits::{Float, FromPrimitive};
 
 use crate::fft;
 use crate::windows;
@@ -41,7 +41,7 @@ pub struct WindowedFFT<T: Float> {
     offset_samples: usize,
 }
 
-impl<T: Float + From<f32>> WindowedFFT<T> {
+impl<T: Float + num_traits::FloatConst + num_traits::FromPrimitive> WindowedFFT<T> {
     /// Create a new WindowedFFT with the specified size
     pub fn new(size: usize, rotate_samples: usize) -> Self {
         let mut result = Self {
@@ -107,9 +107,9 @@ impl<T: Float + From<f32>> WindowedFFT<T> {
     {
         self.set_size_window(size, rotate_samples);
         
-        let inv_size = <T as From<f32>>::from(1.0) / <T as From<f32>>::from(size as f32);
+        let inv_size = T::from_f32(1.0).unwrap() / T::from_f32(size as f32).unwrap();
         for i in 0..size {
-            let r = (<T as From<f32>>::from(i as f32) + window_offset) * inv_size;
+            let r = (T::from_f32(i as f32).unwrap() + window_offset) * inv_size;
             self.fft_window[i] = window_fn(r);
         }
     }
@@ -119,14 +119,14 @@ impl<T: Float + From<f32>> WindowedFFT<T> {
         self.set_size_with_window(
             size,
             |x| {
-                let phase = <T as From<f32>>::from(2.0 * PI) * x;
+                let phase = T::PI() * T::from_f32(2.0).unwrap() * x;
                 // Blackman-Harris
-                <T as From<f32>>::from(0.35875) -
-                <T as From<f32>>::from(0.48829) * phase.cos() +
-                <T as From<f32>>::from(0.14128) * (phase * <T as From<f32>>::from(2.0)).cos() -
-                <T as From<f32>>::from(0.01168) * (phase * <T as From<f32>>::from(3.0)).cos()
+                T::from_f32(0.35875).unwrap() -
+                T::from_f32(0.48829).unwrap() * phase.cos() +
+                T::from_f32(0.14128).unwrap() * (phase * T::from_f32(2.0).unwrap()).cos() -
+                T::from_f32(0.01168).unwrap() * (phase * T::from_f32(3.0).unwrap()).cos()
             },
-            <T as From<f32>>::from(0.5),
+            T::from_f32(0.5).unwrap(),
             rotate_samples,
         );
     }
@@ -150,7 +150,7 @@ impl<T: Float + From<f32>> WindowedFFT<T> {
         let input = input.as_ref();
         let fft_size = self.size();
         let norm = if with_scaling {
-            <T as From<f32>>::from(1.0) / <T as From<f32>>::from(fft_size as f32)
+            T::from_f32(1.0).unwrap() / T::from_f32(fft_size as f32).unwrap()
         } else {
             T::one()
         };
@@ -219,7 +219,7 @@ pub struct SpectralProcessor<T: Float> {
 
 
 
-impl<T: Float + From<f32> + AddAssign> SpectralProcessor<T> {
+impl<T: Float + AddAssign + num_traits::FloatConst + FromPrimitive> SpectralProcessor<T> {
     /// Create a new SpectralProcessor with the specified parameters
     pub fn new(fft_size: usize, overlap: usize) -> Self {
         let mut result = Self {
@@ -241,6 +241,7 @@ impl<T: Float + From<f32> + AddAssign> SpectralProcessor<T> {
         self.input_buffer.resize(fft_size, T::zero());
         self.output_buffer.resize(fft_size, T::zero());
         self.spectrum.resize(fft_size / 2 + 1, Complex::new(T::zero(), T::zero()));
+        let _: T = T::from_usize(1).unwrap(); // Ensure T can convert from usize
         
         // Calculate window sum for normalization
         self.window_sum.resize(fft_size, T::zero());
@@ -255,7 +256,7 @@ impl<T: Float + From<f32> + AddAssign> SpectralProcessor<T> {
         
         // Avoid division by zero
         for i in 0..fft_size {
-            if self.window_sum[i] < <T as From<f32>>::from(1e-10) {
+            if self.window_sum[i] < T::from_f32(1e-10).unwrap() {
                 self.window_sum[i] = T::one();
             }
         }
@@ -302,15 +303,11 @@ impl<T: Float + From<f32> + AddAssign> SpectralProcessor<T> {
         
         // Process in overlapping blocks
         for i in (0..input_len).step_by(self.hop_size) {
-            // Copy input to buffer
+            // Copy input to buffer with bounds checking
             let copy_len = (input_len - i).min(fft_size);
-            for j in 0..copy_len {
-                self.input_buffer[j] = input[i + j];
-            }
-            for j in copy_len..fft_size {
-                self.input_buffer[j] = T::zero();
-            }
-            
+            self.input_buffer[..copy_len].copy_from_slice(&input[i..i + copy_len]);
+            self.input_buffer[copy_len..].fill(T::zero());
+        
             // Perform FFT
             self.fft.fft(&self.input_buffer, &mut self.spectrum, with_window, with_scaling);
             
@@ -320,9 +317,9 @@ impl<T: Float + From<f32> + AddAssign> SpectralProcessor<T> {
             // Perform inverse FFT
             self.fft.ifft(&self.spectrum, &mut self.output_buffer, with_window);
             
-            // Overlap-add to output
+            // Overlap-add to output with safe bounds checking
             let output_offset = i;
-            let add_len = (output_len - output_offset).min(fft_size);
+            let add_len = (output_len.saturating_sub(output_offset)).min(fft_size);
             for j in 0..add_len {
                 output[output_offset + j] += self.output_buffer[j] / self.window_sum[j];
             }

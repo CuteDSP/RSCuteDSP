@@ -16,6 +16,7 @@ use alloc::vec::Vec;
 
 use num_complex::Complex;
 use num_traits::Float;
+use num_traits::FromPrimitive;
 
 use crate::fft;
 use crate::windows;
@@ -71,7 +72,7 @@ use std::ops::AddAssign;
 #[cfg(not(feature = "std"))]
 use core::ops::AddAssign;
 
-impl<T: Float + From<f32> + AddAssign> STFT<T> {
+impl<T: Float + From<f32> + AddAssign + FromPrimitive> STFT<T> {
     /// Create a new STFT instance
     pub fn new(modified: bool) -> Self {
         Self {
