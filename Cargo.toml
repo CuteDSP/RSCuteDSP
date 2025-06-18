@@ -17,6 +17,7 @@ crate-type = ["lib", "cdylib"]
 [features]
 default = ["std"]
 std = []
+alloc = []
 
 [dependencies]
 num-complex = { version = "0.4"}
