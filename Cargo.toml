@@ -2,10 +2,10 @@
 name = "signalsmith-dsp"
 version = "0.0.1"
 edition = "2021"
-authors = ["Signalsmith Audio"]
+authors = ["Signalsmith Audio", "CuteDSP Team", "LogicCuteGuy"]
 description = "A Rust port of the Signalsmith DSP C++ library for audio and signal processing"
 license = "MIT"
-repository = "https://github.com/signalsmith-audio/signalsmith-dsp"
+repository = "https://github.com/CuteDSP/RSSignalsmithDSP"
 keywords = ["dsp", "audio", "fft", "filter", "signal-processing"]
 categories = ["multimedia::audio", "algorithms", "no-std"]
 
@@ -17,9 +17,7 @@ crate-type = ["lib", "cdylib"]
 [features]
 default = ["std"]
 std = []
-run-all-examples = []
 
 [dependencies]
 num-complex = { version = "0.4"}
 num-traits = { version = "0.2" }
-libm = "0.2"

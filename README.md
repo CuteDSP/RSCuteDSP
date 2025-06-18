@@ -1,6 +1,6 @@
 # Signalsmith DSP
 
-A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital Signal Processing) algorithms for audio and signal processing.
+A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital Signal Processing) algorithms for audio and signal processing. This library implements the same high-quality algorithms as the original C++ library, optimized for Rust performance and ergonomics.
 
 [//]: # ([![Crates.io]&#40;https://img.shields.io/crates/v/signalsmith-dsp.svg&#41;]&#40;https://crates.io/crates/signalsmith-dsp&#41;)
 
@@ -9,16 +9,17 @@ A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital S
 
 ## Features
 
-- **FFT**: Fast Fourier Transform implementation optimized for sizes that are products of 2^a * 3^b
-- **Filters**: Biquad filters with various configurations (lowpass, highpass, bandpass, etc.)
-- **Delay Lines**: Efficient delay line implementation with interpolation
-- **Curves**: Cubic curve interpolation
-- **Windows**: Window functions for spectral processing
-- **Envelopes**: LFOs and envelope generators
-- **Spectral Processing**: Tools for spectral manipulation
-- **Time Stretching**: High-quality time stretching without pitch changes
-- **STFT**: Short-time Fourier transform implementation
-- **no_std Support**: Can be used in environments without the standard library
+- **FFT**: Fast Fourier Transform implementation optimized for sizes that are products of 2^a * 3^b, with both complex and real-valued implementations
+- **Filters**: Biquad filters with various configurations (lowpass, highpass, bandpass, etc.) and design methods (Butterworth, cookbook)
+- **Delay Lines**: Efficient delay line implementation with multiple interpolation methods (nearest, linear, cubic)
+- **Curves**: Cubic curve interpolation with control over slope and curvature
+- **Windows**: Window functions for spectral processing (Hann, Hamming, Kaiser, Blackman-Harris, etc.)
+- **Envelopes**: LFOs and envelope generators with precise control and minimal aliasing
+- **Spectral Processing**: Tools for spectral manipulation, phase vocoding, and frequency-domain operations
+- **Time Stretching**: High-quality time stretching and pitch shifting using phase vocoder techniques
+- **STFT**: Short-time Fourier transform implementation with overlap-add processing
+- **Mixing Utilities**: Multi-channel mixing matrices and stereo-to-multi-channel conversion
+- **no_std Support**: Can be used in environments without the standard library, with optional `alloc` feature
 
 ## Installation
 
@@ -106,6 +107,77 @@ fn delay_example() {
 }
 ```
 
+### Time Stretching and Pitch Shifting Example
+
+```rust
+use signalsmith_dsp::stretch::{Stretcher, StretchConfig};
+
+fn time_stretch_example() {
+    // Create a new stretcher with FFT size 1024 and 4x overlap
+    let mut stretcher = Stretcher::<f32>::new(1024, 4);
+
+    // Configure for 2x time stretching with no pitch shift
+    stretcher.set_config(StretchConfig {
+        stretch: 2.0,         // 2x longer
+        pitch_shift: 0.0,     // No pitch shift (in semitones)
+        transient_preservation: 0.6,  // Preserve transients
+        frequency_smoothing: 0.3,     // Moderate frequency smoothing
+        phase_locking: 0.5,           // Moderate phase locking
+        ..Default::default()
+    });
+
+    // Input and output buffers
+    let input = vec![0.0; 1024];  // Fill with audio data
+    let mut output = vec![0.0; 2048];  // Output will be 2x longer
+
+    // Process the audio
+    stretcher.process(&input, &mut output);
+
+    // For real-time processing with variable block sizes
+    let mut realtime_stretcher = RealtimeStretcher::<f32>::new(1024, 4, 512);
+    realtime_stretcher.set_config(stretcher.config().clone());
+
+    // Process blocks in real-time
+    let mut block_in = vec![0.0; 256];
+    let mut block_out = vec![0.0; 512];
+    realtime_stretcher.process_buffer(&block_in, &mut block_out);
+}
+```
+
+### Multichannel Mixing Example
+
+```rust
+use signalsmith_dsp::mix::{Hadamard, StereoMultiMixer};
+
+fn mixing_example() {
+    // Create a Hadamard matrix for 4-channel mixing
+    let hadamard = Hadamard::<f32>::new(4);
+
+    // Mix 4 channels in-place
+    let mut data = vec![1.0, 2.0, 3.0, 4.0];
+    hadamard.in_place(&mut data);
+    // data now contains orthogonal mix of input channels
+
+    // Create a stereo-to-multichannel mixer (must be even number of channels)
+    let mixer = StereoMultiMixer::<f32>::new(6);
+
+    // Convert stereo to 6 channels
+    let stereo_input = [0.5, 0.8];
+    let mut multi_output = vec![0.0; 6];
+    mixer.stereo_to_multi(&stereo_input, &mut multi_output);
+
+    // Convert back to stereo
+    let mut stereo_output = [0.0, 0.0];
+    mixer.multi_to_stereo(&multi_output, &mut stereo_output);
+
+    // Apply energy-preserving crossfade
+    let mut to_coeff = 0.0;
+    let mut from_coeff = 0.0;
+    cheap_energy_crossfade(0.3, &mut to_coeff, &mut from_coeff);
+    // Use coefficients for crossfading between signals
+}
+```
+
 ## Advanced Usage
 
 For more advanced usage examples, see the examples directory:
@@ -125,10 +197,76 @@ For more advanced usage examples, see the examples directory:
 - [Spectral Example](examples/spectral_example.rs) - Spectral processing
 - [Windows Example](examples/windows_example.rs) - Window functions
 
+## Module Overview
+
+### FFT (`fft` module)
+Provides Fast Fourier Transform implementations optimized for different use cases:
+- `SimpleFFT`: General purpose complex-to-complex FFT
+- `SimpleRealFFT`: Optimized for real-valued inputs
+- Support for non-power-of-2 sizes (factorizable into 2^a × 3^b)
+
+### Filters (`filters` module)
+Digital filter implementations:
+- `Biquad`: Second-order filter section with various design methods
+- Various filter types: lowpass, highpass, bandpass, notch, peaking, etc.
+- Support for filter cascading and multi-channel processing
+
+### Delay (`delay` module)
+Delay line utilities:
+- Various interpolation methods (nearest, linear, cubic)
+- Single and multi-channel delay lines
+- Buffer abstractions for efficient memory usage
+
+### Spectral Processing (`spectral` module)
+Frequency-domain processing tools:
+- Magnitude/phase conversion utilities
+- Phase vocoder techniques for pitch and time manipulation
+- Frequency-domain filtering and manipulation
+
+### STFT (`stft` module)
+Short-time Fourier transform processing:
+- Overlap-add processing framework
+- Window function application
+- Spectral processing utilities
+
+### Stretch (`stretch` module)
+Time stretching and pitch shifting:
+- High-quality phase vocoder implementation
+- Independent control of time and pitch
+- Transient preservation and phase locking
+- Real-time processing capabilities
+
+### Mix (`mix` module)
+Multichannel mixing utilities:
+- Orthogonal matrices (Hadamard, Householder) for efficient mixing
+- Stereo to multichannel conversion
+- Energy-preserving crossfading
+
+### Windows (`windows` module)
+Window functions for spectral processing:
+- Common window types (Hann, Hamming, Kaiser, etc.)
+- Window design utilities
+- Overlap handling
+
 ## Feature Flags
 
 - `std` (default): Use the Rust standard library
 - `alloc`: Enable allocation without std (for no_std environments)
+
+## Performance
+
+This library is designed with performance in mind and offers several optimizations:
+
+- **SIMD Opportunities**: Code structure allows for SIMD optimizations where applicable
+- **Cache-Friendly Algorithms**: Algorithms are designed to minimize cache misses
+- **Minimal Allocations**: Operations avoid allocations during processing
+- **Trade-offs**: Where appropriate, there are options to trade between quality and performance
+
+For maximum performance:
+- Use the largest practical buffer sizes for batch processing
+- Reuse processor instances rather than creating new ones
+- Consider using the `f32` type for most audio applications unless higher precision is needed
+- Review the examples in `examples/perf_example.rs` for performance-critical applications
 
 ## License
 
@@ -137,3 +275,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Original C++ library: [Signalsmith Audio DSP Library](https://github.com/signalsmith-audio/dsp)
+- Signalsmith Audio's excellent [technical blog](https://signalsmith-audio.co.uk/writing/) with in-depth explanations of DSP concepts
+- The comprehensive [design documentation](https://signalsmith-audio.co.uk/code/stretch/) for the time stretching algorithm

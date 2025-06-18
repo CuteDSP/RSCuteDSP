@@ -80,26 +80,31 @@ fn realtime_stretch_example() {
     println!("\nRealtime Time Stretching Example:");
     
     // Create a new realtime stretcher with FFT size 1024, overlap 4, and max block size 512
-    let mut stretcher = RealtimeStretcher::<f32>::new(1024, 4, 512);
-    
+    let fft_size = 1024;
+    let overlap = 4;
+    let mut stretcher = RealtimeStretcher::<f32>::new(fft_size, overlap, 512);
+
     // Configure the stretcher
     let mut config = StretchConfig::default();
     config.stretch = 0.75; // Compress by 0.75x (make it shorter)
+    config.phase_locking = 0.5; // Add phase locking for better quality
     stretcher.set_config(config);
     
     // Generate a test signal (sine wave at 440 Hz, 44.1 kHz sample rate)
     let sample_rate = 44100.0;
     let frequency = 440.0;
     let duration_seconds = 0.5;
-    let input_samples = (duration_seconds * sample_rate) as usize;
-    
+
+    // Add extra samples to account for latency
+    let input_samples = (duration_seconds * sample_rate) as usize + fft_size * 2;
+
     let mut input_signal = vec![0.0; input_samples];
     for i in 0..input_samples {
-        input_signal[i] = (2.0 * PI * frequency * (i as f32) / sample_rate as f32).sin();
+        input_signal[i] = (2.0 * PI * frequency * (i as f32) / sample_rate).sin() * 0.9;
     }
-    
+
     // Calculate output size based on stretch ratio
-    let output_samples = (input_samples as f32 * stretcher.config().stretch) as usize;
+    let output_samples = ((input_samples - fft_size * 2) as f32 * stretcher.config().stretch) as usize + fft_size;
     let mut output_signal = vec![0.0; output_samples];
     
     // Process the signal in blocks to simulate realtime processing
@@ -124,18 +129,33 @@ fn realtime_stretch_example() {
     }
     
     // Print information about the stretching
-    println!("Input duration: {} seconds ({} samples)", duration_seconds, input_samples);
+    println!("Input duration: {} seconds ({} samples)", duration_seconds, input_samples - fft_size * 2);
     println!("Output duration: {} seconds ({} samples)", 
-             duration_seconds * stretcher.config().stretch as f32, output_samples);
+             duration_seconds * stretcher.config().stretch as f32, output_samples - fft_size);
     println!("Stretch ratio: {}", stretcher.config().stretch);
     println!("Latency: {} samples", stretcher.latency());
+
+    // Print samples after the latency period
+    let skip_samples = stretcher.latency();
+    println!("\nSample comparison (first 5 samples after latency):");
+    println!("Sample | Input    | Output");
+    println!("-------|----------|--------");
+    for i in 0..5 {
+        let in_idx = i + skip_samples;
+        let out_idx = i + skip_samples;
+        if in_idx < input_signal.len() && out_idx < output_signal.len() {
+            println!("{:6} | {:8.5} | {:8.5}", i, input_signal[in_idx], output_signal[out_idx]);
+        }
+    }
 }
 
 fn pitch_shift_example() {
     println!("\nPitch Shifting Example (using built-in pitch shifting):");
 
     // Create a new stretcher with FFT size 2048 and overlap 4
-    let mut stretcher = Stretcher::<f32>::new(2048, 4);
+    let fft_size = 2048;
+    let overlap = 4;
+    let mut stretcher = Stretcher::<f32>::new(fft_size, overlap);
 
     // Configure the stretcher for pitch shifting
     // We can use the built-in pitch_shift parameter (in semitones)
@@ -151,11 +171,13 @@ fn pitch_shift_example() {
     let sample_rate = 44100.0;
     let frequency = 440.0;
     let duration_seconds = 1.0;
-    let input_samples = (duration_seconds * sample_rate) as usize;
+
+    // Add extra samples to account for latency
+    let input_samples = (duration_seconds * sample_rate) as usize + fft_size * 2;
 
     let mut input_signal = vec![0.0; input_samples];
     for i in 0..input_samples {
-        input_signal[i] = (2.0 * PI * frequency * (i as f32) / sample_rate as f32).sin();
+        input_signal[i] = (2.0 * PI * frequency * (i as f32) / sample_rate).sin() * 0.9;
     }
 
     // Calculate output size based on stretch ratio (1.0, so same as input)
@@ -172,11 +194,16 @@ fn pitch_shift_example() {
     println!("Pitch shift factor: {}", pitch_shift_factor);
     println!("Time stretch ratio: {}", stretcher.config().stretch);
     
-    // Print a few samples of input and output
-    println!("\nSample comparison (first 5 samples):");
+    // Print a few samples of input and output after the latency period
+    let skip_samples = stretcher.latency();
+    println!("\nSample comparison (first 5 samples after latency):");
     println!("Sample | Input    | Output");
     println!("-------|----------|--------");
     for i in 0..5 {
-        println!("{:6} | {:8.5} | {:8.5}", i, input_signal[i], output_signal[i]);
+        let in_idx = i + skip_samples;
+        let out_idx = i + skip_samples;
+        if in_idx < input_signal.len() && out_idx < output_signal.len() {
+            println!("{:6} | {:8.5} | {:8.5}", i, input_signal[in_idx], output_signal[out_idx]);
+        }
     }
 }
