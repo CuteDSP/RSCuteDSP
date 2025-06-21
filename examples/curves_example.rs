@@ -58,9 +58,23 @@ fn cubic_example() {
     // Get the derivative at a point
     println!("Derivative at x=0.5: {}", cubic.derivative_at(0.5));
 
-    // Create a smooth curve through 4 points
-    // Parameters: x0, x1, x2, x3, y0, y1, y2, y3, monotonic
-    let smooth = Cubic::<f32>::smooth(0.0, 1.0, 2.0, 3.0, 0.0, 2.0, 1.0, 3.0, true);
+    // Approximate a smooth cubic curve through 4 points by chaining two Hermite cubics
+    // This will evaluate at x=1.5 (between x1=1.0, x2=2.0) using a Hermite curve
+    let x0 = 0.0;
+    let x1 = 1.0;
+    let x2 = 2.0;
+    let x3 = 3.0;
+    let y0 = 0.0;
+    let y1 = 2.0;
+    let y2 = 1.0;
+    let y3 = 3.0;
+
+    // Estimate tangents for Hermite: central difference where possible
+    let g1 = (y2 - y0) / (x2 - x0);
+    let g2 = (y3 - y1) / (x3 - x1);
+
+    // Hermite curve between (x1,y1) - (x2,y2) using g1, g2
+    let smooth = Cubic::<f32>::hermite(x1, x2, y1, y2, g1, g2);
     println!("Smooth curve value at x=1.5: {}", smooth.evaluate(1.5));
 }
 

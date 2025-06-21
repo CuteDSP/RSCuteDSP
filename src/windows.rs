@@ -143,3 +143,72 @@ pub fn force_perfect_reconstruction<T: Float>(
         }
     }
 }
+
+//test
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kaiser_window() {
+        let mut window = vec![0.0f32; 8];
+        let kaiser = Kaiser::new(3.0);
+        kaiser.fill(&mut window);
+        assert_eq!(window.len(), 8);
+        assert!(window.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+
+    #[test]
+    fn test_acg_window() {
+        let mut window = vec![0.0f32; 8];
+        let acg = ApproximateConfinedGaussian::new(1.0);
+        acg.fill(&mut window);
+        assert_eq!(window.len(), 8);
+        assert!(window.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+    
+    #[test]
+    fn test_force_perfect_reconstruction() {
+        let mut window = vec![0.1f32; 8];
+        force_perfect_reconstruction(&mut window, 8, 2);
+        assert_eq!(window.len(), 8);
+        assert!(window.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+    
+    #[test]
+    fn test_bandwidth_to_beta() {
+        let beta = Kaiser::<f32>::bandwidth_to_beta(4.0, true);
+        assert!(beta > 0.0);
+        let kaiser = Kaiser::new(beta);
+        let mut window = vec![0.0f32; 8];
+        kaiser.fill(&mut window);
+        assert_eq!(window.len(), 8);
+        assert!(window.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+    
+    #[test]
+    fn test_bandwidth_to_sigma() {
+        let sigma = ApproximateConfinedGaussian::<f32>::bandwidth_to_sigma(4.0);
+        assert!(sigma > 0.0);
+        let acg = ApproximateConfinedGaussian::new(sigma);
+        let mut window = vec![0.0f32; 8];
+        acg.fill(&mut window);
+        assert_eq!(window.len(), 8);
+        assert!(window.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+    
+    #[test]
+    fn test_heuristic_bandwidth() {
+        let bandwidth = Kaiser::<f32>::heuristic_bandwidth(4.0);
+        assert!(bandwidth > 0.0);
+        let beta = Kaiser::<f32>::bandwidth_to_beta(bandwidth, true);
+        assert!(beta > 0.0);
+        let kaiser = Kaiser::new(beta);
+        let mut window = vec![0.0f32; 8];
+        kaiser.fill(&mut window);
+        assert_eq!(window.len(), 8);
+        assert!(window.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+    
+    
+}
