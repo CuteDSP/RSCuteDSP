@@ -2,6 +2,7 @@
 
 A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital Signal Processing) algorithms for audio and signal processing. This library implements the same high-quality algorithms as the original C++ library, optimized for Rust performance and ergonomics.
 
+[![Crates.io](https://img.shields.io/crates/v/signalsmith-dsp)](https://crates.io/crates/signalsmith-dsp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
@@ -283,3 +284,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Original C++ library: [Signalsmith Audio DSP Library](https://github.com/signalsmith-audio/dsp)
 - Signalsmith Audio's excellent [technical blog](https://signalsmith-audio.co.uk/writing/) with in-depth explanations of DSP concepts
 - The comprehensive [design documentation](https://signalsmith-audio.co.uk/code/stretch/) for the time stretching algorithm
+
