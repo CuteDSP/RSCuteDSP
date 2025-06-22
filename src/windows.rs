@@ -11,7 +11,7 @@ use std::f32::consts::PI;
 #[cfg(not(feature = "std"))]
 use core::f32::consts::PI;
 
-use num_traits::Float;
+use num_traits::{Float, FromPrimitive, NumCast};
 
 /// The Kaiser window (almost) maximizes the energy in the main-lobe compared to the side-lobes.
 pub struct Kaiser<T: Float> {
@@ -19,12 +19,12 @@ pub struct Kaiser<T: Float> {
     inv_b0: T,
 }
 
-impl<T: Float + From<f32>> Kaiser<T> {
+impl<T: Float + FromPrimitive + NumCast> Kaiser<T> {
     /// Create a Kaiser window with a given shape parameter.
     pub fn new(beta: T) -> Self {
         Self {
             beta,
-            inv_b0: <T as From<f32>>::from(1.0) / Self::bessel0(beta),
+            inv_b0: T::from_f32(1.0).unwrap() / Self::bessel0(beta),
         }
     }
 
@@ -40,18 +40,18 @@ impl<T: Float + From<f32>> Kaiser<T> {
         } else {
             bandwidth
         };
-        let bandwidth = bandwidth.max(2.0.into());
-        let alpha = (bandwidth * bandwidth * 0.25.into() - 1.0.into()).sqrt();
-        alpha * <T as From<f32>>::from(PI)
+        let bandwidth = bandwidth.max(T::from_f32(2.0).unwrap());
+        let alpha = (bandwidth * bandwidth * T::from_f32(0.25).unwrap() - T::from_f32(1.0).unwrap()).sqrt();
+        alpha * T::from_f32(PI).unwrap()
     }
 
     /// Fills a slice with a Kaiser window
     pub fn fill(&self, data: &mut [T]) {
         let size = data.len();
-        let inv_size = <T as From<f32>>::from(1.0) / <T as From<f32>>::from(size as f32);
+        let inv_size = T::from_f32(1.0).unwrap() / T::from_usize(size).unwrap();
         for i in 0..size {
-            let r = (<T as From<f32>>::from(2.0) * <T as From<f32>>::from(i as f32) + <T as From<f32>>::from(1.0)) * inv_size - <T as From<f32>>::from(1.0);
-            let arg = (<T as From<f32>>::from(1.0) - r * r).sqrt();
+            let r = T::from_usize(2 * i + 1).unwrap() * inv_size - T::from_f32(1.0).unwrap();
+            let arg = (T::from_f32(1.0).unwrap() - r * r).sqrt();
             data[i] = Self::bessel0(self.beta * arg) * self.inv_b0;
         }
     }
@@ -59,21 +59,21 @@ impl<T: Float + From<f32>> Kaiser<T> {
     // Modified Bessel function of the first kind, order 0
     fn bessel0(x: T) -> T {
         const SIGNIFICANCE_LIMIT: f32 = 1e-4;
-        let mut result = <T as From<f32>>::from(0.0);
-        let mut term = <T as From<f32>>::from(1.0);
-        let mut m = <T as From<f32>>::from(0.0);
-        while term > SIGNIFICANCE_LIMIT.into() {
+        let mut result = T::from_f32(0.0).unwrap();
+        let mut term = T::from_f32(1.0).unwrap();
+        let mut m = T::from_f32(0.0).unwrap();
+        while term > T::from_f32(SIGNIFICANCE_LIMIT).unwrap() {
             result = result + term;
-            m = m + <T as From<f32>>::from(1.0);
-            term = term * (x * x) / (<T as From<f32>>::from(4.0) * m * m);
+            m = m + T::from_f32(1.0).unwrap();
+            term = term * (x * x) / (T::from_f32(4.0).unwrap() * m * m);
         }
         result
     }
 
     // Heuristic for optimal bandwidth
     fn heuristic_bandwidth(bandwidth: T) -> T {
-        bandwidth + <T as From<f32>>::from(8.0) / ((bandwidth + <T as From<f32>>::from(3.0)) * (bandwidth + <T as From<f32>>::from(3.0)))
-            + <T as From<f32>>::from(0.25) * (<T as From<f32>>::from(3.0) - bandwidth).max(<T as From<f32>>::from(0.0))
+        bandwidth + T::from_f32(8.0).unwrap() / ((bandwidth + T::from_f32(3.0).unwrap()) * (bandwidth + T::from_f32(3.0).unwrap()))
+            + T::from_f32(0.25).unwrap() * (T::from_f32(3.0).unwrap() - bandwidth).max(T::from_f32(0.0).unwrap())
     }
 }
 

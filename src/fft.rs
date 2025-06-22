@@ -518,7 +518,7 @@ impl<T: Float + num_traits::FromPrimitive> SimpleRealFFT<T> {
         let size = self.tmp_time.len();
         
         // Create temporary zero buffer for imaginary part
-        let mut tmp_i = vec![T::zero(); size];
+        let tmp_i = vec![T::zero(); size];
         
         // Perform complex FFT with split representation
         self.complex_fft.fft_split(in_r, &tmp_i, out_r, out_i);

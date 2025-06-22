@@ -2,9 +2,6 @@
 
 A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital Signal Processing) algorithms for audio and signal processing. This library implements the same high-quality algorithms as the original C++ library, optimized for Rust performance and ergonomics.
 
-[//]: # ([![Crates.io]&#40;https://img.shields.io/crates/v/signalsmith-dsp.svg&#41;]&#40;https://crates.io/crates/signalsmith-dsp&#41;)
-
-[//]: # ([![Documentation]&#40;https://docs.rs/signalsmith-dsp/badge.svg&#41;]&#40;https://docs.rs/signalsmith-dsp&#41;)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
@@ -19,6 +16,7 @@ A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital S
 - **Time Stretching**: High-quality time stretching and pitch shifting using phase vocoder techniques
 - **STFT**: Short-time Fourier transform implementation with overlap-add processing
 - **Mixing Utilities**: Multi-channel mixing matrices and stereo-to-multi-channel conversion
+- **Linear Algebra**: Expression template system for efficient vector operations
 - **no_std Support**: Can be used in environments without the standard library, with optional `alloc` feature
 
 ## Installation
@@ -110,37 +108,25 @@ fn delay_example() {
 ### Time Stretching and Pitch Shifting Example
 
 ```rust
-use signalsmith_dsp::stretch::{Stretcher, StretchConfig};
+use signalsmith_dsp::stretch::SignalsmithStretch;
 
 fn time_stretch_example() {
-    // Create a new stretcher with FFT size 1024 and 4x overlap
-    let mut stretcher = Stretcher::<f32>::new(1024, 4);
+    // Create a new stretch processor
+    let mut stretcher = SignalsmithStretch::<f32>::new();
 
-    // Configure for 2x time stretching with no pitch shift
-    stretcher.set_config(StretchConfig {
-        stretch: 2.0,         // 2x longer
-        pitch_shift: 0.0,     // No pitch shift (in semitones)
-        transient_preservation: 0.6,  // Preserve transients
-        frequency_smoothing: 0.3,     // Moderate frequency smoothing
-        phase_locking: 0.5,           // Moderate phase locking
-        ..Default::default()
-    });
+    // Configure for 2x time stretching with pitch shift up 3 semitones
+    stretcher.configure(1, 1024, 256, false); // 1 channel, 1024 block size, 256 interval
+    stretcher.set_transpose_semitones(3.0, 0.5); // Pitch up 3 semitones
+    stretcher.set_formant_semitones(1.0, false); // Formant shift
 
     // Input and output buffers
-    let input = vec![0.0; 1024];  // Fill with audio data
-    let mut output = vec![0.0; 2048];  // Output will be 2x longer
+    let input_len = 1024;
+    let output_len = 2048; // 2x longer output
+    let input = vec![vec![0.0; input_len]]; // Fill with audio data
+    let mut output = vec![vec![0.0; output_len]];
 
     // Process the audio
-    stretcher.process(&input, &mut output);
-
-    // For real-time processing with variable block sizes
-    let mut realtime_stretcher = RealtimeStretcher::<f32>::new(1024, 4, 512);
-    realtime_stretcher.set_config(stretcher.config().clone());
-
-    // Process blocks in real-time
-    let mut block_in = vec![0.0; 256];
-    let mut block_out = vec![0.0; 512];
-    realtime_stretcher.process_buffer(&block_in, &mut block_out);
+    stretcher.process(&input, input_len, &mut output, output_len);
 }
 ```
 
@@ -173,7 +159,7 @@ fn mixing_example() {
     // Apply energy-preserving crossfade
     let mut to_coeff = 0.0;
     let mut from_coeff = 0.0;
-    cheap_energy_crossfade(0.3, &mut to_coeff, &mut from_coeff);
+    signalsmith_dsp::mix::cheap_energy_crossfade(0.3, &mut to_coeff, &mut from_coeff);
     // Use coefficients for crossfading between signals
 }
 ```
@@ -186,8 +172,7 @@ For more advanced usage examples, see the examples directory:
 - [Filter Example](examples/filter_example.rs) - Biquad filters
 - [Delay Example](examples/delay_example.rs) - Delay lines
 - [STFT Example](examples/stft_example.rs) - Short-time Fourier transform
-- [Stretch Example](examples/stretch_example.rs) - Time stretching
-- [Pitch Shift Example](examples/pitch_shift_example.rs) - Pitch shifting
+- [Stretch Example](examples/stretch_example.rs) - Time stretching and pitch shifting
 - [Curves Example](examples/curves_example.rs) - Curve interpolation
 - [Envelopes Example](examples/envelopes_example.rs) - LFOs and envelope generators
 - [Linear Example](examples/linear_example.rs) - Linear operations
@@ -231,9 +216,9 @@ Short-time Fourier transform processing:
 
 ### Stretch (`stretch` module)
 Time stretching and pitch shifting:
-- High-quality phase vocoder implementation
+- High-quality phase vocoder implementation using `SignalsmithStretch`
 - Independent control of time and pitch
-- Transient preservation and phase locking
+- Formant preservation and frequency mapping
 - Real-time processing capabilities
 
 ### Mix (`mix` module)
@@ -246,7 +231,28 @@ Multichannel mixing utilities:
 Window functions for spectral processing:
 - Common window types (Hann, Hamming, Kaiser, etc.)
 - Window design utilities
-- Overlap handling
+- Overlap handling and perfect reconstruction
+
+### Envelopes (`envelopes` module)
+Low-frequency oscillators and envelope generators:
+- Precise control with minimal aliasing
+- Multiple waveform types
+- Configurable frequency and amplitude
+
+### Linear (`linear` module)
+Linear algebra utilities:
+- Expression template system for efficient vector operations
+- Optimized mathematical operations
+
+### Curves (`curves` module)
+Curve interpolation:
+- Cubic curve interpolation with control over slope and curvature
+- Smooth parameter transitions
+
+### Rates (`rates` module)
+Sample rate conversion:
+- High-quality resampling algorithms
+- Configurable quality settings
 
 ## Feature Flags
 

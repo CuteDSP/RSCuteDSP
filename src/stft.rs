@@ -17,6 +17,7 @@ use alloc::vec::Vec;
 use num_complex::Complex;
 use num_traits::Float;
 use num_traits::FromPrimitive;
+use num_traits::NumCast;
 
 use crate::fft;
 use crate::windows;
@@ -72,7 +73,7 @@ use std::ops::AddAssign;
 #[cfg(not(feature = "std"))]
 use core::ops::AddAssign;
 
-impl<T: Float + From<f32> + AddAssign + FromPrimitive> STFT<T> {
+impl<T: Float + FromPrimitive + NumCast + AddAssign> STFT<T> {
     /// Create a new STFT instance
     pub fn new(modified: bool) -> Self {
         Self {
@@ -95,7 +96,7 @@ impl<T: Float + From<f32> + AddAssign + FromPrimitive> STFT<T> {
             window_products: Vec::new(),
             spectrum_buffer: Vec::new(),
             time_buffer: Vec::new(),
-            almost_zero: <T as From<f32>>::from(1e-20),
+            almost_zero: T::from_f32(1e-20).unwrap(),
             modified,
         }
     }
@@ -182,18 +183,18 @@ impl<T: Float + From<f32> + AddAssign + FromPrimitive> STFT<T> {
     /// Convert bin index to frequency
     pub fn bin_to_freq(&self, bin: T) -> T {
         if self.modified {
-            (bin + <T as From<f32>>::from(0.5)) / <T as From<f32>>::from(self.fft_samples as f32)
+            (bin + T::from_f32(0.5).unwrap()) / T::from_usize(self.fft_samples).unwrap()
         } else {
-            bin / <T as From<f32>>::from(self.fft_samples as f32)
+            bin / T::from_usize(self.fft_samples).unwrap()
         }
     }
 
     /// Convert frequency to bin index
     pub fn freq_to_bin(&self, freq: T) -> T {
         if self.modified {
-            freq * <T as From<f32>>::from(self.fft_samples as f32) - <T as From<f32>>::from(0.5)
+            freq * T::from_usize(self.fft_samples).unwrap() - T::from_f32(0.5).unwrap()
         } else {
-            freq * <T as From<f32>>::from(self.fft_samples as f32)
+            freq * T::from_usize(self.fft_samples).unwrap()
         }
     }
 
@@ -327,13 +328,13 @@ impl<T: Float + From<f32> + AddAssign + FromPrimitive> STFT<T> {
             },
             WindowShape::ACG => {
                 // Approximate Confined Gaussian window
-                let acg = windows::ApproximateConfinedGaussian::with_bandwidth(<T as From<T>>::from(2.5.into()));
+                let acg = windows::ApproximateConfinedGaussian::with_bandwidth(T::from_f32(2.5).unwrap());
                 acg.fill(self.analysis_window.as_mut_slice());
                 acg.fill(self.synthesis_window.as_mut_slice());
             },
             WindowShape::Kaiser => {
                 // Kaiser window
-                let kaiser = windows::Kaiser::with_bandwidth(<T as From<f32>>::from(2.5), true);
+                let kaiser = windows::Kaiser::with_bandwidth(T::from_f32(2.5).unwrap(), true);
                 kaiser.fill(self.analysis_window.as_mut_slice());
                 kaiser.fill(self.synthesis_window.as_mut_slice());
             },

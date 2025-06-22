@@ -210,9 +210,8 @@ impl<T: Float> Biquad<T> {
         filter_type: FilterType,
         spec: FreqSpec,
         sqrt_gain: f32,
-        design: BiquadDesign,
+        _design: BiquadDesign,
     ) -> &mut Self {
-        let w0 = spec.w0;
         let sin_w0 = spec.sin_w0;
         let cos_w0 = spec.cos_w0;
         let inv_2q = spec.inv_2q;

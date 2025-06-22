@@ -11,6 +11,7 @@
 //! - **Curves**: Cubic curve interpolation
 //! - **Windows**: Window functions for spectral processing
 //! - **Envelopes**: LFOs and envelope generators
+//! - **Linear Algebra**: Expression template system for efficient vector operations
 //! - **no_std Support**: Can be used in environments without the standard library
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -25,6 +26,7 @@ pub mod perf;
 pub mod mix;
 pub mod rates;
 pub mod windows;
+pub mod linear;
 
 pub mod envelopes;
 
@@ -34,3 +36,4 @@ pub mod stft;
 pub mod delay;
 pub mod fft;
 pub mod filters;
+pub mod stretch;

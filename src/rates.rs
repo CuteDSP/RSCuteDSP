@@ -13,10 +13,10 @@ use core::f32::consts::PI;
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 use alloc::vec::Vec;
 
-use num_traits::Float;
+use num_traits::{Float, FromPrimitive, NumCast};
 
 /// Fills a container with a Kaiser-windowed sinc for an FIR lowpass.
-pub fn fill_kaiser_sinc<T: Float + From<f32>>(
+pub fn fill_kaiser_sinc<T: Float + FromPrimitive + NumCast>(
     data: &mut [T],
     pass_freq: f32,
     stop_freq: f32,
@@ -27,8 +27,8 @@ pub fn fill_kaiser_sinc<T: Float + From<f32>>(
     }
     
     // Calculate Kaiser bandwidth parameter
-    let kaiser_bandwidth = <T as From<f32>>::from(stop_freq - pass_freq) * <T as From<f32>>::from(length as f32);
-    let kaiser_bandwidth = kaiser_bandwidth + <T as From<f32>>::from(1.25) / kaiser_bandwidth; // heuristic for transition band
+    let kaiser_bandwidth = T::from_f32(stop_freq - pass_freq).unwrap() * T::from_usize(length).unwrap();
+    let kaiser_bandwidth = kaiser_bandwidth + T::from_f32(1.25).unwrap() / kaiser_bandwidth; // heuristic for transition band
     
     // Create Kaiser window
     let kaiser = crate::windows::Kaiser::with_bandwidth(kaiser_bandwidth, false);
@@ -47,12 +47,12 @@ pub fn fill_kaiser_sinc<T: Float + From<f32>>(
         } else {
             amp_scale
         };
-        data[i] = data[i] * <T as From<f32>>::from(sinc);
+        data[i] = data[i] * T::from_f32(sinc).unwrap();
     }
 }
 
 /// If only the centre frequency is specified, a heuristic is used to balance ripples and transition width.
-pub fn fill_kaiser_sinc_with_centre<T: Float + From<f32>>(
+pub fn fill_kaiser_sinc_with_centre<T: Float + FromPrimitive + NumCast>(
     data: &mut [T],
     centre_freq: f32,
 ) {
@@ -70,7 +70,7 @@ pub fn fill_kaiser_sinc_with_centre<T: Float + From<f32>>(
 /// 2x FIR oversampling for block-based processing.
 ///
 /// The oversampled signal is stored inside this object, with channels accessed via `oversampler[c]`.
-pub struct Oversampler2xFIR<T: Float> {
+pub struct Oversampler2xFIR<T: Float + FromPrimitive + NumCast> {
     one_way_latency: usize,
     kernel_length: usize,
     channels: usize,
@@ -81,7 +81,7 @@ pub struct Oversampler2xFIR<T: Float> {
     buffer: Vec<T>,
 }
 
-impl<T: Float + From<f32>> Oversampler2xFIR<T> {
+impl<T: Float + FromPrimitive + NumCast> Oversampler2xFIR<T> {
     /// Create a new oversampler with the specified parameters
     pub fn new(channels: usize, max_block: usize, half_latency: usize, pass_freq: f32) -> Self {
         let mut result = Self {
@@ -231,7 +231,7 @@ impl<T: Float + From<f32>> Oversampler2xFIR<T> {
             }
             
             let v2 = sum;
-            let v = (v1 + v2) * <T as From<f32>>::from(0.5);
+            let v = (v1 + v2) * T::from_f32(0.5).unwrap();
             data[i] = v;
         }
         

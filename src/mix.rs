@@ -179,7 +179,7 @@ impl<T: Float + FromPrimitive> StereoMultiMixer<T> {
 /// A cheap (polynomial) almost-energy-preserving crossfade
 ///
 /// Maximum energy error: 1.06%, average 0.64%, curves overshoot by 0.3%
-pub fn cheap_energy_crossfade<T: Float + From<f32>>(x: T, to_coeff: &mut T, from_coeff: &mut T) {
+pub fn cheap_energy_crossfade<T: Float + FromPrimitive>(x: T, to_coeff: &mut T, from_coeff: &mut T) {
     *to_coeff = x;
     *from_coeff = T::one() - x;
 }

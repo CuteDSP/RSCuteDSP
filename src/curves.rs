@@ -100,27 +100,8 @@ impl<T: Float> Cubic<T> {
     }
 
     pub fn derivative_at(&self, x: T) -> T {
-        let x = x - self.x_start;
-        self.a1 + x * (self.a2 * (T::one() + T::one()) + x * self.a3 * (T::one() + T::one() + T::one()))
-    }
-
-    fn gradient(x0: T, x1: T, y0: T, y1: T) -> T {
-        (y1 - y0) / (x1 - x0)
-    }
-
-    fn ensure_monotonic(curve_grad: &mut T, grad_a: T, grad_b: T) {
-        if (grad_a <= T::zero() && grad_b >= T::zero())
-            || (grad_a >= T::zero() && grad_b <= T::zero())
-        {
-            *curve_grad = T::zero();
-        } else {
-            if curve_grad.abs() > grad_a * (T::one() + T::one() + T::one()) {
-                *curve_grad = grad_a * (T::one() + T::one() + T::one());
-            }
-            if curve_grad.abs() > grad_b * (T::one() + T::one() + T::one()) {
-                *curve_grad = grad_b * (T::one() + T::one() + T::one());
-            }
-        }
+        let dx = x - self.x_start;
+        self.a1 + dx * (T::from(2.0).unwrap() * self.a2 + T::from(3.0).unwrap() * dx * self.a3)
     }
 
     pub fn hermite(x0: T, x1: T, y0: T, y1: T, g0: T, g1: T) -> Self {
