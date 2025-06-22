@@ -497,24 +497,28 @@ impl<T: Float> StereoBiquad<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_biquad_lowpass() {
         let mut filter = Biquad::<f32>::new(false);
         filter.lowpass(0.25, 0.7071, BiquadDesign::Bilinear);
-        
-        // DC should pass through
-        assert!((filter.process(1.0) - 1.0).abs() < 1e-6);
-        
-        // Reset and test with a sine wave at Nyquist
-        filter.reset();
+
+        // Process DC signal to reach steady state
         let mut output = 0.0;
         for _ in 0..100 {
-            // Alternating 1.0, -1.0 (Nyquist frequency)
             output = filter.process(1.0);
+        }
+        // DC should pass through
+        assert!((output - 1.0).abs() < 1e-6);
+
+        // Reset and test with a sine wave at Nyquist
+        filter.reset();
+        for _ in 0..100 {
+            // Alternating 1.0, -1.0 (Nyquist frequency)
+            filter.process(1.0);
             output = filter.process(-1.0);
         }
-        
+
         // Nyquist should be heavily attenuated
         assert!(output.abs() < 0.1);
     }
@@ -542,29 +546,31 @@ mod tests {
         // Nyquist should pass through
         assert!(output.abs() > 0.9);
     }
-    
+
     #[test]
     fn test_stereo_biquad() {
         let mut filter = StereoBiquad::<f32>::new(false);
         filter.lowpass(0.25, 0.7071, BiquadDesign::Bilinear);
-        
-        // Process stereo sample
-        let (left, right) = filter.process(1.0, 0.5);
-        
+
+        // Process multiple samples to reach steady state
+        let (mut left, mut right) = (0.0, 0.0);
+        for _ in 0..100 {
+            (left, right) = filter.process(1.0, 0.5);
+        }
+
         // Both channels should be processed similarly
         assert!((left - 1.0).abs() < 1e-6);
         assert!((right - 0.5).abs() < 1e-6);
-        
+
         // Test buffer processing
-        let mut left_buffer = vec![1.0; 10];
-        let mut right_buffer = vec![0.5; 10];
-        
+        filter.reset();
+        let mut left_buffer = vec![1.0; 100];
+        let mut right_buffer = vec![0.5; 100];
+
         filter.process_buffer(&mut left_buffer, &mut right_buffer);
-        
-        // Check that all samples were processed
-        for i in 0..10 {
-            assert!((left_buffer[i] - 1.0).abs() < 1e-6);
-            assert!((right_buffer[i] - 0.5).abs() < 1e-6);
-        }
+
+        // Check last samples after stabilization
+        assert!((left_buffer[99] - 1.0).abs() < 1e-6);
+        assert!((right_buffer[99] - 0.5).abs() < 1e-6);
     }
 }

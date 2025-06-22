@@ -493,25 +493,24 @@ impl<T: Float + num_traits::FromPrimitive> SimpleRealFFT<T> {
     /// Perform a forward FFT on real data
     pub fn fft(&mut self, time: &[T], freq: &mut [Complex<T>]) {
         let size = self.tmp_time.len();
-        
+
         // Copy real data to complex buffer
         for i in 0..size {
             self.tmp_time[i] = Complex::new(time[i], T::zero());
         }
-        
+
         // Perform complex FFT
-        self.complex_fft.fft(&self.tmp_time, &mut self.tmp_freq.clone());
-        
-        // Extract the result (only half the spectrum is needed due to symmetry)
-        for i in 0..size / 2 {
+        self.complex_fft.fft(&self.tmp_time, &mut self.tmp_freq);
+
+        // Corrected output handling:
+        // DC component (real only)
+        freq[0] = Complex::new(self.tmp_freq[0].re, T::zero());
+        // Positive frequencies
+        for i in 1..size/2 {
             freq[i] = self.tmp_freq[i];
         }
-        
-        // Special case for DC and Nyquist
-        freq[0] = Complex::new(
-            self.tmp_freq[0].re,
-            self.tmp_freq[size / 2].re,
-        );
+        // Nyquist component (real only)
+        freq[size/2] = Complex::new(self.tmp_freq[size/2].re, T::zero());
     }
 
     /// Perform a forward FFT on real data with split output
@@ -531,22 +530,21 @@ impl<T: Float + num_traits::FromPrimitive> SimpleRealFFT<T> {
     /// Perform an inverse FFT to real data
     pub fn ifft(&mut self, freq: &[Complex<T>], time: &mut [T]) {
         let size = self.tmp_freq.len();
-        
+
         // DC component
         self.tmp_freq[0] = Complex::new(freq[0].re, T::zero());
-        
         // Nyquist component
-        self.tmp_freq[size / 2] = Complex::new(freq[0].im, T::zero());
-        
+        self.tmp_freq[size/2] = Complex::new(freq[size/2].re, T::zero());
+
         // Fill the rest of the spectrum using conjugate symmetry
-        for i in 1..size / 2 {
+        for i in 1..size/2 {
             self.tmp_freq[i] = freq[i];
             self.tmp_freq[size - i] = freq[i].conj();
         }
-        
+
         // Perform inverse complex FFT
-        self.complex_fft.ifft(&self.tmp_freq, &mut self.tmp_time.clone());
-        
+        self.complex_fft.ifft(&self.tmp_freq, &mut self.tmp_time);
+
         // Extract real part
         for i in 0..size {
             time[i] = self.tmp_time[i].re;
@@ -556,19 +554,19 @@ impl<T: Float + num_traits::FromPrimitive> SimpleRealFFT<T> {
     /// Perform an inverse FFT from split complex to real data
     pub fn ifft_split(&self, in_r: &[T], in_i: &[T], out_r: &mut [T]) {
         let size = self.tmp_freq.len();
-        
+
         // Create temporary buffers for the full spectrum
         let mut tmp_freq_r = vec![T::zero(); size];
         let mut tmp_freq_i = vec![T::zero(); size];
-        
+
         // DC component
         tmp_freq_r[0] = in_r[0];
         tmp_freq_i[0] = T::zero();
-        
+
         // Nyquist component
         tmp_freq_r[size / 2] = in_i[0];
         tmp_freq_i[size / 2] = T::zero();
-        
+
         // Fill the rest of the spectrum using conjugate symmetry
         for i in 1..size / 2 {
             tmp_freq_r[i] = in_r[i];
@@ -576,10 +574,10 @@ impl<T: Float + num_traits::FromPrimitive> SimpleRealFFT<T> {
             tmp_freq_r[size - i] = in_r[i];
             tmp_freq_i[size - i] = -in_i[i];
         }
-        
+
         // Create temporary buffer for imaginary output (will be discarded)
         let mut tmp_out_i = vec![T::zero(); size];
-        
+
         // Perform inverse complex FFT
         self.complex_fft.ifft_split(&tmp_freq_r, &tmp_freq_i, out_r, &mut tmp_out_i);
     }

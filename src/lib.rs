@@ -28,9 +28,6 @@ pub mod windows;
 
 pub mod envelopes;
 
-
-pub mod stretch;
-
 pub mod spectral;
 
 pub mod stft;
