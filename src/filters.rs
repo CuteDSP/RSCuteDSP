@@ -493,6 +493,63 @@ impl<T: Float> StereoBiquad<T> {
     }
 }
 
+/// A direct-form FIR (impulse response) filter
+pub struct FIR<T: Float> {
+    kernel: Vec<T>,
+    buffer: Vec<T>,
+    pos: usize,
+}
+
+impl<T: Float> FIR<T> {
+    /// Create a new FIR filter with the given impulse response (kernel)
+    pub fn new(kernel: Vec<T>) -> Self {
+        let len = kernel.len();
+        Self {
+            kernel,
+            buffer: vec![T::zero(); len],
+            pos: 0,
+        }
+    }
+
+    /// Reset the filter state (clears the buffer)
+    pub fn reset(&mut self) {
+        for v in &mut self.buffer {
+            *v = T::zero();
+        }
+        self.pos = 0;
+    }
+
+    /// Process a single sample through the FIR filter
+    pub fn process(&mut self, input: T) -> T {
+        let len = self.kernel.len();
+        self.buffer[self.pos] = input;
+        let mut acc = T::zero();
+        let mut i = self.pos;
+        for k in 0..len {
+            acc = acc + self.kernel[k] * self.buffer[i];
+            if i == 0 {
+                i = len - 1;
+            } else {
+                i -= 1;
+            }
+        }
+        self.pos = (self.pos + 1) % len;
+        acc
+    }
+
+    /// Process a buffer of samples through the FIR filter (in-place)
+    pub fn process_buffer(&mut self, buffer: &mut [T]) {
+        for sample in buffer.iter_mut() {
+            *sample = self.process(*sample);
+        }
+    }
+
+    /// Get the kernel (impulse response)
+    pub fn kernel(&self) -> &[T] {
+        &self.kernel
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -571,5 +628,35 @@ mod tests {
         // Check last samples after stabilization
         assert!((left_buffer[99] - 1.0).abs() < 1e-6);
         assert!((right_buffer[99] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_fir_filter() {
+        use super::FIR;
+        // Impulse response: [1.0, 0.5, 0.25]
+        let kernel = vec![1.0, 0.5, 0.25];
+        let mut fir = FIR::new(kernel.clone());
+        fir.reset();
+        // Feed an impulse (1.0, then zeros)
+        let mut output = vec![];
+        output.push(fir.process(1.0));
+        output.push(fir.process(0.0));
+        output.push(fir.process(0.0));
+        // Should match the kernel
+        for (o, k) in output.iter().zip(kernel.iter()) {
+            assert!((o - k).abs() < 1e-6);
+        }
+        // Test moving average (box filter)
+        let kernel = vec![1.0/3.0; 3];
+        let mut fir = FIR::new(kernel);
+        fir.reset();
+        let input = vec![3.0, 3.0, 3.0, 3.0];
+        let mut output = vec![];
+        for x in input {
+            output.push(fir.process(x));
+        }
+        // After initial fill, output should be 3.0
+        assert!((output[2] - 3.0).abs() < 1e-6);
+        assert!((output[3] - 3.0).abs() < 1e-6);
     }
 }

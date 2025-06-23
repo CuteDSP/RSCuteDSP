@@ -19,6 +19,7 @@ A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital S
 - **Mixing Utilities**: Multi-channel mixing matrices and stereo-to-multi-channel conversion
 - **Linear Algebra**: Expression template system for efficient vector operations
 - **no_std Support**: Can be used in environments without the standard library, with optional `alloc` feature
+- **Spacing (Room Reverb)**: Simulate room acoustics with customizable geometry, early reflections, and multi-channel output
 
 ## Installation
 
@@ -165,6 +166,29 @@ fn mixing_example() {
 }
 ```
 
+### Spacing (Room Reverb) Example
+
+```rust
+use signalsmith_dsp::spacing::{Spacing, Position};
+
+fn spacing_example() {
+    // Create a new Spacing effect with a given sample rate
+    let mut spacing = Spacing::<f32>::new(48000.0);
+    // Add source and receiver positions (in meters)
+    let src = spacing.add_source(Position { x: 0.0, y: 0.0, z: 0.0 });
+    let recv = spacing.add_receiver(Position { x: 3.43, y: 0.0, z: 0.0 });
+    // Add a direct path
+    spacing.add_path(src, recv, 1.0, 0.0);
+    // Prepare input and output buffers
+    let mut input = vec![0.0; 500];
+    input[0] = 1.0; // Impulse
+    let mut outputs = vec![vec![0.0; 500]];
+    // Process the input through the effect
+    spacing.process(&[&input], &mut outputs);
+    // outputs[0] now contains the processed signal
+}
+```
+
 ## Advanced Usage
 
 For more advanced usage examples, see the examples directory:
@@ -254,6 +278,13 @@ Curve interpolation:
 Sample rate conversion:
 - High-quality resampling algorithms
 - Configurable quality settings
+
+### Spacing (`spacing` module)
+Provides a customizable room reverb effect:
+- Multi-tap delay network simulating early reflections
+- 3D source and receiver positioning
+- Adjustable room size, damping, diffusion, bass, decay, and cross-mix
+- Suitable for spatial audio and immersive effects
 
 ## Feature Flags
 

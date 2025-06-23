@@ -1,12 +1,12 @@
 [package]
 name = "signalsmith-dsp"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 authors = ["CuteDSP Team", "LogicCuteGuy"]
 description = "A Rust clone of the Signalsmith DSP C++ library for audio and signal processing"
 license = "MIT"
 repository = "https://github.com/CuteDSP/RSSignalsmithDSP"
-keywords = ["dsp", "audio", "fft", "filter", "signal-processing"]
+keywords = ["dsp", "audio", "fft", "filter", "signal-processing", "stft", "iir", "no-std", "pitch-shift", "iir-filters", "iir-filter", "time-stretch", "no-std-alloc", "signalsmith", "cutedsp"]
 categories = ["multimedia::audio", "algorithms", "no-std"]
 
 [lib]

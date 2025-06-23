@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "signalsmith-dsp"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "num-complex",
  "num-traits",

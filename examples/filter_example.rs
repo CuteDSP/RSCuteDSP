@@ -17,6 +17,9 @@ fn main() {
 
     // Example 3: Stereo Filter
     stereo_filter_example();
+
+    // Example 4: FIR/IR Filter
+    fir_filter_example();
 }
 
 fn basic_filter_example() {
@@ -117,5 +120,30 @@ fn stereo_filter_example() {
     println!("      Left    Right");
     for i in 0..10 {
         println!("{}: {:.4}  {:.4}", i, left[i], right[i]);
+    }
+}
+
+fn fir_filter_example() {
+    use signalsmith_dsp::filters::FIR;
+    println!("\nFIR/IR Filter Example:");
+    // Simple 3-tap moving average kernel
+    let kernel = vec![1.0/3.0; 3];
+    let mut fir = FIR::new(kernel.clone());
+    let mut buffer = vec![0.0; 10];
+    buffer[0] = 1.0; // Impulse
+    fir.process_buffer(&mut buffer);
+    println!("Moving average FIR impulse response (first 10 samples):");
+    for i in 0..10 {
+        println!("Sample {}: {:.6}", i, buffer[i]);
+    }
+    // Custom kernel example
+    let kernel = vec![0.5, 0.3, 0.2];
+    let mut fir = FIR::new(kernel.clone());
+    let mut buffer = vec![0.0; 10];
+    buffer[0] = 1.0;
+    fir.process_buffer(&mut buffer);
+    println!("\nCustom FIR impulse response (first 10 samples):");
+    for i in 0..10 {
+        println!("Sample {}: {:.6}", i, buffer[i]);
     }
 }

@@ -37,3 +37,5 @@ pub mod delay;
 pub mod fft;
 pub mod filters;
 pub mod stretch;
+
+pub mod spacing;
