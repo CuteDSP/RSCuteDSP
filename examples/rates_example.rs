@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the sample rate conversion functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::rates::{fill_kaiser_sinc, fill_kaiser_sinc_with_centre, Oversampler2xFIR};
+use cute_dsp::rates::{fill_kaiser_sinc, fill_kaiser_sinc_with_centre, Oversampler2xFIR};
 
 fn main() {
     println!("Sample Rate Conversion Example");

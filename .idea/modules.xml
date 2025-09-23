@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/signalsmith-dsp.iml" filepath="$PROJECT_DIR$/.idea/signalsmith-dsp.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/cute-dsp.iml" filepath="$PROJECT_DIR$/.idea/cute-dsp.iml" />
     </modules>
   </component>
 </project>

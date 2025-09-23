@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the envelope functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::envelopes::{CubicLfo, BoxFilter, BoxStackFilter, PeakHold, PeakDecayLinear};
+use cute_dsp::envelopes::{CubicLfo, BoxFilter, BoxStackFilter, PeakHold, PeakDecayLinear};
 
 fn main() {
     println!("Envelopes Example");

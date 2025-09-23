@@ -1,25 +1,30 @@
 [package]
-name = "signalsmith-dsp"
+name = "cute-dsp"
 version = "0.0.2"
 edition = "2021"
 authors = ["CuteDSP Team", "LogicCuteGuy"]
 description = "A Rust clone of the Signalsmith DSP C++ library for audio and signal processing"
 license = "MIT"
-repository = "https://github.com/CuteDSP/RSSignalsmithDSP"
+repository = "https://github.com/CuteDSP/RSCuteDSP"
 keywords = ["dsp", "audio", "signal-processing", "fft", "no-std"]
 categories = ["multimedia::audio", "algorithms", "no-std"]
 
 [lib]
-name = "signalsmith_dsp"
+name = "cute_dsp"
 path = "src/lib.rs"
-crate-type = ["lib", "dylib"]
+crate-type = ["lib", "cdylib"]
 
 [features]
 default = ["std"]
 std = []
 alloc = []
 run-all-examples = []
+wasm = ["wasm-bindgen"]
 
 [dependencies]
 num-complex = { version = "0.4"}
 num-traits = { version = "0.2" }
+wasm-bindgen = { version = "0.2", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-cli = "0.2"

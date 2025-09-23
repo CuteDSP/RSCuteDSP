@@ -4,7 +4,7 @@
 //! functionality in the Signalsmith DSP library for spectral processing.
 
 use num_complex::Complex;
-use signalsmith_dsp::stft::{STFT, WindowShape};
+use cute_dsp::stft::{STFT, WindowShape};
 use std::f32::consts::PI;
 
 fn main() {

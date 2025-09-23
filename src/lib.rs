@@ -19,6 +19,9 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 // Re-export modules
 pub mod common;
 pub mod curves;
@@ -39,3 +42,15 @@ pub mod filters;
 pub mod stretch;
 
 pub mod spacing;
+
+#[cfg(feature = "wasm")]
+mod wasm_bindings;
+
+#[cfg(feature = "wasm")]
+pub use wasm_bindings::*;
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}

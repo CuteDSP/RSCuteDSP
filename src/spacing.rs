@@ -5,8 +5,8 @@
 
 use crate::delay::{Delay, InterpolatorLinear};
 use num_traits::{Float, FromPrimitive};
-use crate::filters::{Biquad, BiquadDesign};
-use crate::mix::{Hadamard, Householder};
+use crate::filters::Biquad;
+use crate::mix::Hadamard;
 
 /// 3D position for source/receiver
 #[derive(Clone, Copy, Debug)]

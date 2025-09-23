@@ -1,6 +1,6 @@
 //! Example usage of SignalsmithStretch for time-stretching and pitch-shifting
 
-use signalsmith_dsp::stretch::SignalsmithStretch;
+use cute_dsp::stretch::SignalsmithStretch;
 use std::f32::consts::PI;
 
 fn main() {

@@ -3,10 +3,10 @@
 //! This example demonstrates how to use the spectral processing functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::spectral::{WindowedFFT, SpectralProcessor};
-use signalsmith_dsp::windows::Kaiser;
+use cute_dsp::spectral::{WindowedFFT, SpectralProcessor};
+use cute_dsp::windows::Kaiser;
+use cute_dsp::spectral::utils::{apply_gain, apply_phase_shift, apply_time_shift, complex_to_mag_phase, db_to_linear, linear_to_db, mag_phase_to_complex};
 use num_complex::Complex;
-use signalsmith_dsp::spectral::utils::{apply_gain, apply_phase_shift, apply_time_shift, complex_to_mag_phase, db_to_linear, linear_to_db, mag_phase_to_complex};
 
 fn main() {
     println!("Spectral Processing Example");

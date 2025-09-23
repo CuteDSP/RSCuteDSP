@@ -476,7 +476,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signalsmith_stretch_new() {
+    fn test_cute_stretch_new() {
         let stretch = SignalsmithStretch::<f32>::new();
         assert_eq!(stretch.channels, 0);
         assert_eq!(stretch.bands, 0);
@@ -484,7 +484,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signalsmith_stretch_configure() {
+    fn test_cute_stretch_configure() {
         let mut stretch = SignalsmithStretch::<f32>::new();
         stretch.configure(2, 1024, 256, false);
         
@@ -568,4 +568,4 @@ mod tests {
         assert!(outputs[0].iter().any(|&x| x != 0.0));
         assert!(outputs[1].iter().any(|&x| x != 0.0));
     }
-} 
+}

@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the mixing functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::mix::{Hadamard, Householder, StereoMultiMixer, cheap_energy_crossfade};
+use cute_dsp::mix::{Hadamard, Householder, StereoMultiMixer, cheap_energy_crossfade};
 
 fn main() {
     println!("Mix Example");

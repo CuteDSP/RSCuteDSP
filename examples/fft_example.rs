@@ -3,8 +3,8 @@
 //! This example demonstrates how to use the FFT (Fast Fourier Transform) functionality
 //! in the Signalsmith DSP library.
 
+use cute_dsp::fft::{SimpleFFT, SimpleRealFFT};
 use num_complex::Complex;
-use signalsmith_dsp::fft::{SimpleFFT, SimpleRealFFT};
 
 fn main() {
     println!("FFT Example");

@@ -3,10 +3,13 @@
 //! This example demonstrates how to use the delay line functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::delay::{
-    Delay, MultiDelay, 
-    InterpolatorNearest, InterpolatorLinear, InterpolatorCubic
-};
+use cute_dsp::delay::{
+    Delay,
+    MultiDelay,
+    InterpolatorNearest,
+    InterpolatorLinear,
+    InterpolatorCubic,
+ };
 
 fn main() {
     println!("Delay Example");
@@ -101,7 +104,7 @@ fn interpolation_comparison() {
 fn multi_delay_example() {
     println!("\nMulti-channel Delay Example:");
     
-    // Create a multi-channel delay line with 2 channels and capacity for 100 samples
+    // Create a multichannel delay line with 2 channels and capacity for 100 samples
     let mut multi_delay = MultiDelay::new(InterpolatorCubic::<f32>::new(), 2, 100);
     
     // Reset the delay line

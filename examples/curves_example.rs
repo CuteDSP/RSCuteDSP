@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the curve interpolation functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::curves::{Linear, Cubic, CubicSegmentCurve, Reciprocal};
+use cute_dsp::curves::{Linear, Cubic, CubicSegmentCurve, Reciprocal};
 
 fn main() {
     println!("Curves Example");

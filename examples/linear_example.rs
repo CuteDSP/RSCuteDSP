@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the linear algebra and expression template system
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::linear::*;
+use cute_dsp::linear::*;
 use num_complex::Complex;
 
 fn main() {
@@ -75,4 +75,4 @@ fn fill_real_example() {
         print!("{:.1} ", v);
     }
     println!();
-} 
+}

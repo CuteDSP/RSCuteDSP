@@ -2,7 +2,7 @@
 
 A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital Signal Processing) algorithms for audio and signal processing. This library implements the same high-quality algorithms as the original C++ library, optimized for Rust performance and ergonomics.
 
-[![Crates.io](https://img.shields.io/crates/v/signalsmith-dsp)](https://crates.io/crates/signalsmith-dsp)
+[![Crates.io](https://img.shields.io/crates/v/cute-dsp)](https://crates.io/crates/cute-dsp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
@@ -27,15 +27,143 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-signalsmith-dsp = "0.0.1"
+cute-dsp = "0.0.2"
 ```
+
+## WebAssembly Support
+
+This library supports compilation to WebAssembly for use in web browsers and Node.js, with full DSP functionality exposed.
+
+To build for WASM (no-modules target for broad compatibility):
+
+1. Install `wasm-pack`:
+   ```bash
+   cargo install wasm-pack
+   ```
+
+2. Build the WASM package:
+   ```bash
+   wasm-pack build --target no-modules --out-dir pkg --features wasm
+   ```
+
+3. Use in HTML/JavaScript (no-modules target):
+   ```html
+   <!DOCTYPE html>
+   <html>
+   <head>
+       <meta charset="utf-8">
+       <title>CuteDSP WASM Demo</title>
+   </head>
+   <body>
+       <script src="pkg/cute_dsp.js"></script>
+       <script>
+       async function run() {
+           // Initialize WASM
+           await wasm_bindgen();
+
+           // Create FFT instance
+           const fft = new wasm_bindgen.WasmFFT(1024);
+
+           // Create input arrays
+           const realIn = new Float32Array(1024);
+           const imagIn = new Float32Array(1024);
+           const realOut = new Float32Array(1024);
+           const imagOut = new Float32Array(1024);
+
+           // Fill input with a sine wave
+           for (let i = 0; i < 1024; i++) {
+               realIn[i] = Math.sin(2 * Math.PI * i / 1024);
+               imagIn[i] = 0;
+           }
+
+           // Perform FFT
+           fft.fft_forward(realIn, imagIn, realOut, imagOut);
+
+           // Create and use a biquad filter
+           const filter = new wasm_bindgen.WasmBiquad();
+           filter.lowpass(0.1, 0.7); // Normalized frequency, Q factor
+
+           const audioIn = new Float32Array(1024);
+           const audioOut = new Float32Array(1024);
+           // Fill audioIn with audio data...
+
+           filter.process(audioIn, audioOut);
+
+           // Create a delay line
+           const delay = new wasm_bindgen.WasmDelay(44100); // Max delay samples
+           const delayedSample = delay.process(0.5, 22050.0); // Input sample, delay in samples
+
+           // Create an LFO
+           const lfo = new wasm_bindgen.WasmLFO();
+           lfo.set_params(0.0, 1.0, 5.0, 0.0, 0.0); // low, high, rate, rate_variation, depth_variation
+           const lfoSample = lfo.process();
+
+           // Create window functions
+           const kaiser = new wasm_bindgen.WasmKaiser(0.1); // Beta parameter
+           const windowData = new Float32Array(512);
+           kaiser.fill(windowData);
+
+           // Hann and Hamming windows
+           wasm_bindgen.WasmHann.fill(windowData);
+           wasm_bindgen.WasmHamming.fill(windowData);
+
+           // Create a delay line
+           const delay = new wasm_bindgen.WasmDelay(44100); // Max delay samples
+           const delayedSample = delay.process(0.5, 22050.0); // Input sample, delay in samples
+
+           // Create an LFO
+           const lfo = new wasm_bindgen.WasmLFO();
+           lfo.set_params(0.0, 1.0, 5.0, 0.0, 0.0); // low, high, rate, rate_variation, depth_variation
+           const lfoSample = lfo.process();
+
+           // Create window functions
+           const kaiser = new wasm_bindgen.WasmKaiser(0.1); // Beta parameter
+           const windowData = new Float32Array(512);
+           kaiser.fill(windowData);
+
+           // Hann and Hamming windows
+           wasm_bindgen.WasmHann.fill(windowData);
+           wasm_bindgen.WasmHamming.fill(windowData);
+
+           // Create STFT
+           const stft = new wasm_bindgen.WasmSTFT(false); // false for non-modified
+           stft.configure(1, 1, 512); // input channels, output channels, block size
+
+           // Linear curve mapping
+           const curve = wasm_bindgen.WasmLinearCurve.from_points(0.0, 1.0, 0.0, 100.0);
+           const mappedValue = curve.evaluate(0.5);
+
+           // Sample rate conversion filters
+           const srcFilter = new Float32Array(256);
+           wasm_bindgen.WasmSampleRateConverter.fill_kaiser_sinc_filter(srcFilter, 0.45, 0.55);
+
+           // Spectral utilities
+           const complex = wasm_bindgen.WasmSpectralUtils.mag_phase_to_complex(1.0, 0.5);
+           const magPhase = wasm_bindgen.WasmSpectralUtils.complex_to_mag_phase(1.0, 0.0);
+           const dbValue = wasm_bindgen.WasmSpectralUtils.linear_to_db(10.0);
+
+           // Multi-channel mixing
+           const hadamard = new wasm_bindgen.WasmHadamardMixer(4); // 4-channel mixer
+           const channels = new Float32Array([1.0, 0.5, 0.3, 0.1]);
+           hadamard.mix_in_place(channels);
+
+           console.log('DSP operations completed!');
+       }
+
+       run();
+       </script>
+   </body>
+   </html>
+   ```
+
+   Or try the included real-time demo: `wasm_demo.html`
 
 ## Usage Examples
 
 ### FFT Example
 
 ```rust
-use signalsmith_dsp::fft::{SimpleFFT, SimpleRealFFT};
+use cute_dsp::fft::{SimpleFFT, SimpleRealFFT};
 use num_complex::Complex;
 
 fn fft_example() {
@@ -64,7 +192,7 @@ fn fft_example() {
 ### Biquad Filter Example
 
 ```rust
-use signalsmith_dsp::filters::{Biquad, BiquadDesign, FilterType};
+use cute_dsp::filters::{Biquad, BiquadDesign, FilterType};
 
 fn filter_example() {
     // Create a new biquad filter
@@ -85,7 +213,7 @@ fn filter_example() {
 ### Delay Line Example
 
 ```rust
-use signalsmith_dsp::delay::{Delay, InterpolatorCubic};
+use cute_dsp::delay::{Delay, InterpolatorCubic};
 
 fn delay_example() {
     // Create a delay line with cubic interpolation and 1 second capacity at 44.1 kHz
@@ -110,7 +238,7 @@ fn delay_example() {
 ### Time Stretching and Pitch Shifting Example
 
 ```rust
-use signalsmith_dsp::stretch::SignalsmithStretch;
+use cute_dsp::stretch::SignalsmithStretch;
 
 fn time_stretch_example() {
     // Create a new stretch processor
@@ -135,7 +263,7 @@ fn time_stretch_example() {
 ### Multichannel Mixing Example
 
 ```rust
-use signalsmith_dsp::mix::{Hadamard, StereoMultiMixer};
+use cute_dsp::mix::{Hadamard, StereoMultiMixer};
 
 fn mixing_example() {
     // Create a Hadamard matrix for 4-channel mixing
@@ -161,7 +289,7 @@ fn mixing_example() {
     // Apply energy-preserving crossfade
     let mut to_coeff = 0.0;
     let mut from_coeff = 0.0;
-    signalsmith_dsp::mix::cheap_energy_crossfade(0.3, &mut to_coeff, &mut from_coeff);
+    cute_dsp::mix::cheap_energy_crossfade(0.3, &mut to_coeff, &mut from_coeff);
     // Use coefficients for crossfading between signals
 }
 ```
@@ -169,7 +297,7 @@ fn mixing_example() {
 ### Spacing (Room Reverb) Example
 
 ```rust
-use signalsmith_dsp::spacing::{Spacing, Position};
+use cute_dsp::spacing::{Spacing, Position};
 
 fn spacing_example() {
     // Create a new Spacing effect with a given sample rate
@@ -315,4 +443,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Original C++ library: [Signalsmith Audio DSP Library](https://github.com/signalsmith-audio/dsp)
 - Signalsmith Audio's excellent [technical blog](https://signalsmith-audio.co.uk/writing/) with in-depth explanations of DSP concepts
 - The comprehensive [design documentation](https://signalsmith-audio.co.uk/code/stretch/) for the time stretching algorithm
-

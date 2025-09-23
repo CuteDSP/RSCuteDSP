@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the filter functionality
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::filters::{Biquad, BiquadDesign, FilterType, StereoBiquad};
+use cute_dsp::filters::{Biquad, BiquadDesign, FilterType, StereoBiquad};
 
 fn main() {
     println!("Filter Example");
@@ -124,7 +124,7 @@ fn stereo_filter_example() {
 }
 
 fn fir_filter_example() {
-    use signalsmith_dsp::filters::FIR;
+    use cute_dsp::filters::FIR;
     println!("\nFIR/IR Filter Example:");
     // Simple 3-tap moving average kernel
     let kernel = vec![1.0/3.0; 3];

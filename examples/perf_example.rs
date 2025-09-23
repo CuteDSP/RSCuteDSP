@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the performance utilities
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::perf::{StopDenormals, mul, mul_conj};
+use cute_dsp::perf::{StopDenormals, mul, mul_conj};
 use num_complex::Complex;
 use std::time::{Duration, Instant};
 

@@ -1,6 +1,6 @@
 //! Example usage of Spacing (custom room reverb)
 
-use signalsmith_dsp::spacing::{Spacing, Position};
+use cute_dsp::spacing::{Spacing, Position};
 
 fn main() {
     example_basic_room();
@@ -156,4 +156,4 @@ fn example_with_long_buffer() {
     println!("Max output at sample {}: {:.4}", max_idx, max_val);
     println!("First 20 output samples: {:?}", &outputs[0][..20]);
     println!("Output around max: {:?}", &outputs[0][max_idx.saturating_sub(5)..(max_idx+6).min(outputs[0].len())]);
-} 
+}

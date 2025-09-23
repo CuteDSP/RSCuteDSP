@@ -3,7 +3,7 @@
 //! This example demonstrates how to use the window functions
 //! in the Signalsmith DSP library.
 
-use signalsmith_dsp::windows::{Kaiser, ApproximateConfinedGaussian, force_perfect_reconstruction};
+use cute_dsp::windows::{Kaiser, ApproximateConfinedGaussian, force_perfect_reconstruction};
 use std::f32::consts::PI;
 
 fn main() {
