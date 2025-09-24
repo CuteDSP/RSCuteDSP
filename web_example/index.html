@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CuteDSP WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: #7f8c8d;
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .loading {
+            background: rgba(255, 193, 7, 0.9);
+            color: #856404;
+            animation: pulse 2s infinite;
+        }
+        .ready {
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+        }
+        .error {
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+        }
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .demo-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .demo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+        .demo-card h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .control-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        .value-display {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        canvas {
+            width: 100%;
+            max-width: 100%;
+            height: 200px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            margin-top: 15px;
+        }
+        .info {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .info h3 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .feature-item {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 CuteDSP</h1>
+        <div class="subtitle">High-Performance Digital Signal Processing in WebAssembly</div>
+    </div>
+
+    <div id="status" class="status loading">
+        <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px;"></div>
+        Loading WebAssembly Module...
+    </div>
+
+    <div class="demo-grid">
+        <!-- FFT Demo -->
+        <div class="demo-card">
+            <h3>🔊 FFT Analysis</h3>
+            <p>Real-time Fast Fourier Transform with adjustable parameters</p>
+
+            <div class="control-group">
+                <label>FFT Size: <span id="fftSizeValue" class="value-display">1024</span></label>
+                <input type="range" id="fftSize" min="256" max="4096" value="1024" step="256">
+            </div>
+
+            <div class="control-group">
+                <label>Signal Frequency: <span id="fftFreqValue" class="value-display">10</span> Hz</label>
+                <input type="range" id="fftFreq" min="1" max="50" value="10">
+            </div>
+
+            <button id="fftBtn" disabled>Run FFT Analysis</button>
+            <canvas id="fftCanvas"></canvas>
+        </div>
+
+        <!-- STFT Demo -->
+        <div class="demo-card">
+            <h3>🎼 STFT Analysis</h3>
+            <p>Short-Time Fourier Transform for time-frequency analysis</p>
+
+            <div class="control-group">
+                <label>Window Size: <span id="stftSizeValue" class="value-display">512</span></label>
+                <input type="range" id="stftSize" min="128" max="1024" value="512" step="128">
+            </div>
+
+            <div class="control-group">
+                <label>Hop Size: <span id="stftHopValue" class="value-display">256</span></label>
+                <input type="range" id="stftHop" min="64" max="512" value="256" step="64">
+            </div>
+
+            <button id="stftBtn" disabled>Run STFT</button>
+            <canvas id="stftCanvas"></canvas>
+        </div>
+
+        <!-- Filter Demo -->
+        <div class="demo-card">
+            <h3>🎛️ Biquad Filter</h3>
+            <p>Real-time audio filtering with adjustable cutoff frequency</p>
+
+            <div class="control-group">
+                <label>Filter Type:</label>
+                <select id="filterType">
+                    <option value="lowpass">Low Pass</option>
+                    <option value="highpass">High Pass</option>
+                    <option value="bandpass">Band Pass</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Cutoff Frequency: <span id="filterFreqValue" class="value-display">1000</span> Hz</label>
+                <input type="range" id="filterFreq" min="100" max="8000" value="1000">
+            </div>
+
+            <div class="control-group">
+                <label>Q Factor: <span id="filterQValue" class="value-display">1.0</span></label>
+                <input type="range" id="filterQ" min="0.1" max="10" value="1.0" step="0.1">
+            </div>
+
+            <button id="filterBtn" disabled>Apply Filter</button>
+            <canvas id="filterCanvas"></canvas>
+        </div>
+
+        <!-- Delay Demo -->
+        <div class="demo-card">
+            <h3>⏰ Delay Effect</h3>
+            <p>Echo/delay effect with feedback control</p>
+
+            <div class="control-group">
+                <label>Delay Time: <span id="delayTimeValue" class="value-display">300</span> ms</label>
+                <input type="range" id="delayTime" min="50" max="1000" value="300">
+            </div>
+
+            <div class="control-group">
+                <label>Feedback: <span id="delayFeedbackValue" class="value-display">0.3</span></label>
+                <input type="range" id="delayFeedback" min="0" max="0.9" value="0.3" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>Wet/Dry Mix: <span id="delayMixValue" class="value-display">0.5</span></label>
+                <input type="range" id="delayMix" min="0" max="1" value="0.5" step="0.1">
+            </div>
+
+            <button id="delayBtn" disabled>Test Delay</button>
+            <canvas id="delayCanvas"></canvas>
+        </div>
+
+        <!-- Envelope Demo -->
+        <div class="demo-card">
+            <h3>📈 Envelope Generator</h3>
+            <p>ADSR envelope shaping for dynamic control</p>
+
+            <div class="control-group">
+                <label>Attack: <span id="envAttackValue" class="value-display">0.1</span> s</label>
+                <input type="range" id="envAttack" min="0.01" max="1" value="0.1" step="0.01">
+            </div>
+
+            <div class="control-group">
+                <label>Decay: <span id="envDecayValue" class="value-display">0.2</span> s</label>
+                <input type="range" id="envDecay" min="0.01" max="1" value="0.2" step="0.01">
+            </div>
+
+            <div class="control-group">
+                <label>Sustain: <span id="envSustainValue" class="value-display">0.7</span></label>
+                <input type="range" id="envSustain" min="0" max="1" value="0.7" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>Release: <span id="envReleaseValue" class="value-display">0.5</span> s</label>
+                <input type="range" id="envRelease" min="0.01" max="2" value="0.5" step="0.01">
+            </div>
+
+            <button id="envBtn" disabled>Generate Envelope</button>
+            <canvas id="envCanvas"></canvas>
+        </div>
+
+        <!-- Microphone Demo -->
+        <div class="demo-card">
+            <h3>🎤 Live Audio Analysis</h3>
+            <p>Real-time microphone input processing</p>
+
+            <div class="control-group">
+                <label>Analysis Mode:</label>
+                <select id="micMode">
+                    <option value="fft">FFT Spectrum</option>
+                    <option value="waveform">Waveform</option>
+                    <option value="filter">Filtered Output</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Filter Freq: <span id="micFilterValue" class="value-display">1000</span> Hz</label>
+                <input type="range" id="micFilter" min="100" max="8000" value="1000">
+            </div>
+
+            <button id="micStartBtn" disabled>🎤 Start Mic</button>
+            <button id="micStopBtn" disabled style="background: #dc3545;">⏹️ Stop</button>
+            <canvas id="micCanvas"></canvas>
+            <div id="micStatus" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
+        </div>
+
+        <!-- Window Demo -->
+        <div class="demo-card">
+            <h3>📊 Window Functions</h3>
+            <p>Spectral windowing for improved FFT analysis</p>
+
+            <div class="control-group">
+                <label>Window Type:</label>
+                <select id="windowType">
+                    <option value="hann">Hann</option>
+                    <option value="hamming">Hamming</option>
+                    <option value="blackman">Blackman</option>
+                    <option value="kaiser">Kaiser</option>
+                </select>
+            </div>
+
+            <button id="windowBtn" disabled>Generate Window</button>
+            <canvas id="windowCanvas"></canvas>
+        </div>
+
+        <!-- Performance Demo -->
+        <div class="demo-card">
+            <h3>⚡ Performance Test</h3>
+            <p>Measure DSP processing performance</p>
+
+            <div class="control-group">
+                <label>Test Size: <span id="perfSizeValue" class="value-display">10000</span> samples</label>
+                <input type="range" id="perfSize" min="1000" max="100000" value="10000" step="1000">
+            </div>
+
+            <button id="perfBtn" disabled>Run Performance Test</button>
+            <div id="perfResult" style="margin-top: 15px; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 6px; min-height: 60px;"></div>
+        </div>
+    </div>
+
+    <div class="info">
+        <h3>🚀 Features</h3>
+        <div class="feature-list">
+            <div class="feature-item">• High-performance FFT algorithms</div>
+            <div class="feature-item">• Real-time audio filtering</div>
+            <div class="feature-item">• Spectral analysis tools</div>
+            <div class="feature-item">• Windowing functions</div>
+            <div class="feature-item">• Delay line processing</div>
+            <div class="feature-item">• Envelope generators</div>
+            <div class="feature-item">• Cross-platform compatibility</div>
+            <div class="feature-item">• Zero-copy memory management</div>
+        </div>
+
+        <h3>💻 Usage</h3>
+        <p>This demo showcases CuteDSP's WebAssembly capabilities. All processing happens in the browser using native performance. Try adjusting the parameters and see real-time results!</p>
+
+        <h3>🔧 Technical Details</h3>
+        <ul>
+            <li><strong>Language:</strong> Rust compiled to WebAssembly</li>
+            <li><strong>Performance:</strong> Native-speed DSP algorithms</li>
+            <li><strong>Memory:</strong> Efficient zero-copy operations</li>
+            <li><strong>Compatibility:</strong> Works in all modern browsers</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        import init, * as wasmModule from './pkg/cute_dsp.js';
+
+        window.wasmModule = wasmModule;
+
+        // Initialize WebAssembly
+        const startTime = performance.now();
+        const statusDiv = document.getElementById('status');
+
+        init().then(() => {
+            const loadTime = performance.now() - startTime;
+            console.log(`✅ WebAssembly loaded in ${loadTime.toFixed(1)}ms`);
+
+            statusDiv.innerHTML = `✅ WebAssembly loaded successfully in ${loadTime.toFixed(1)}ms!`;
+            statusDiv.className = 'status ready';
+
+            // Enable all buttons
+            document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+
+            // Setup demo controls
+            setupDemos();
+
+        }).catch(error => {
+            const loadTime = performance.now() - startTime;
+            statusDiv.innerHTML = `❌ Failed to load WebAssembly after ${loadTime.toFixed(1)}ms: ${error.message}`;
+            statusDiv.className = 'status error';
+            console.error('WASM loading error:', error);
+        });
+
+        function setupDemos() {
+            // FFT Demo
+            setupFFTDemo();
+
+            // STFT Demo
+            setupSTFTDemo();
+
+            // Filter Demo
+            setupFilterDemo();
+
+            // Delay Demo
+            setupDelayDemo();
+
+            // Envelope Demo
+            setupEnvelopeDemo();
+
+            // Microphone Demo
+            setupMicrophoneDemo();
+
+            // Window Demo
+            setupWindowDemo();
+
+            // Performance Demo
+            setupPerformanceDemo();
+        }
+
+        function setupFFTDemo() {
+            const fftSizeInput = document.getElementById('fftSize');
+            const fftFreqInput = document.getElementById('fftFreq');
+            const fftSizeValue = document.getElementById('fftSizeValue');
+            const fftFreqValue = document.getElementById('fftFreqValue');
+            const fftBtn = document.getElementById('fftBtn');
+            const fftCanvas = document.getElementById('fftCanvas');
+            const ctx = fftCanvas.getContext('2d');
+
+            // Set canvas size
+            fftCanvas.width = fftCanvas.offsetWidth;
+            fftCanvas.height = fftCanvas.offsetHeight;
+
+            fftSizeInput.addEventListener('input', () => fftSizeValue.textContent = fftSizeInput.value);
+            fftFreqInput.addEventListener('input', () => fftFreqValue.textContent = fftFreqInput.value);
+
+            fftBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const fftSize = parseInt(fftSizeInput.value);
+                const frequency = parseInt(fftFreqInput.value);
+
+                // Create FFT
+                const fft = new wasmModule.WasmFFT(fftSize);
+
+                // Generate test signal
+                const realIn = new Float32Array(fftSize);
+                const imagIn = new Float32Array(fftSize);
+                const realOut = new Float32Array(fftSize);
+                const imagOut = new Float32Array(fftSize);
+
+                for (let i = 0; i < fftSize; i++) {
+                    realIn[i] = Math.sin(2 * Math.PI * i * frequency / fftSize);
+                    imagIn[i] = 0;
+                }
+
+                // Run FFT
+                fft.fft_forward(realIn, imagIn, realOut, imagOut);
+
+                // Plot magnitude spectrum
+                ctx.clearRect(0, 0, fftCanvas.width, fftCanvas.height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+
+                const halfSize = fftSize / 2;
+                for (let i = 0; i < halfSize; i++) {
+                    const magnitude = Math.sqrt(realOut[i] * realOut[i] + imagOut[i] * imagOut[i]);
+                    const x = (i / halfSize) * fftCanvas.width;
+                    const y = fftCanvas.height - (magnitude / fftSize) * fftCanvas.height * 10;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Add labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(`FFT Size: ${fftSize}, Frequency: ${frequency}Hz`, 10, 20);
+            });
+        }
+
+        function setupSTFTDemo() {
+            const stftSizeInput = document.getElementById('stftSize');
+            const stftHopInput = document.getElementById('stftHop');
+            const stftSizeValue = document.getElementById('stftSizeValue');
+            const stftHopValue = document.getElementById('stftHopValue');
+            const stftBtn = document.getElementById('stftBtn');
+            const stftCanvas = document.getElementById('stftCanvas');
+            const ctx = stftCanvas.getContext('2d');
+
+            // Set canvas size
+            stftCanvas.width = stftCanvas.offsetWidth;
+            stftCanvas.height = stftCanvas.offsetHeight;
+
+            stftSizeInput.addEventListener('input', () => stftSizeValue.textContent = stftSizeInput.value);
+            stftHopInput.addEventListener('input', () => stftHopValue.textContent = stftHopInput.value);
+
+            stftBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const windowSize = parseInt(stftSizeInput.value);
+                const hopSize = parseInt(stftHopInput.value);
+
+                // Generate a test signal with changing frequency
+                const signalLength = 4096;
+                const signal = new Float32Array(signalLength);
+
+                for (let i = 0; i < signalLength; i++) {
+                    const t = i / signalLength;
+                    // Frequency sweep from 10Hz to 50Hz
+                    const freq = 10 + 40 * t;
+                    signal[i] = Math.sin(2 * Math.PI * freq * i / 44100);
+                }
+
+                // Create STFT
+                const stft = new wasmModule.WasmSTFT(windowSize, hopSize);
+
+                // Process signal
+                const numFrames = Math.floor((signalLength - windowSize) / hopSize) + 1;
+                const spectrogram = [];
+
+                for (let frame = 0; frame < numFrames; frame++) {
+                    const startIdx = frame * hopSize;
+                    const frameData = signal.slice(startIdx, startIdx + windowSize);
+
+                    // Apply window (simplified Hann window)
+                    for (let i = 0; i < frameData.length; i++) {
+                        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (frameData.length - 1));
+                        frameData[i] *= window;
+                    }
+
+                    // FFT
+                    const realIn = new Float32Array(windowSize);
+                    const imagIn = new Float32Array(windowSize);
+                    const realOut = new Float32Array(windowSize);
+                    const imagOut = new Float32Array(windowSize);
+
+                    for (let i = 0; i < windowSize; i++) {
+                        realIn[i] = frameData[i];
+                        imagIn[i] = 0;
+                    }
+
+                    const fft = new wasmModule.WasmFFT(windowSize);
+                    fft.fft_forward(realIn, imagIn, realOut, imagOut);
+
+                    // Store magnitude spectrum
+                    const magnitudes = [];
+                    for (let i = 0; i < windowSize / 2; i++) {
+                        magnitudes.push(Math.sqrt(realOut[i] * realOut[i] + imagOut[i] * imagOut[i]));
+                    }
+                    spectrogram.push(magnitudes);
+                }
+
+                // Visualize spectrogram
+                ctx.clearRect(0, 0, stftCanvas.width, stftCanvas.height);
+
+                const timeStep = stftCanvas.width / spectrogram.length;
+                const freqStep = stftCanvas.height / (windowSize / 2);
+
+                for (let t = 0; t < spectrogram.length; t++) {
+                    for (let f = 0; f < spectrogram[t].length; f++) {
+                        const magnitude = spectrogram[t][f];
+                        const intensity = Math.min(255, magnitude * 100);
+
+                        ctx.fillStyle = `rgb(${intensity}, 0, ${255 - intensity})`;
+                        ctx.fillRect(t * timeStep, stftCanvas.height - (f + 1) * freqStep, timeStep, freqStep);
+                    }
+                }
+
+                // Add labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(`STFT: ${windowSize} window, ${hopSize} hop`, 10, 20);
+            });
+        }
+
+        function setupFilterDemo() {
+            const filterTypeSelect = document.getElementById('filterType');
+            const filterFreqInput = document.getElementById('filterFreq');
+            const filterQInput = document.getElementById('filterQ');
+            const filterFreqValue = document.getElementById('filterFreqValue');
+            const filterQValue = document.getElementById('filterQValue');
+            const filterBtn = document.getElementById('filterBtn');
+            const filterCanvas = document.getElementById('filterCanvas');
+            const ctx = filterCanvas.getContext('2d');
+
+            // Set canvas size
+            filterCanvas.width = filterCanvas.offsetWidth;
+            filterCanvas.height = filterCanvas.offsetHeight;
+
+            filterFreqInput.addEventListener('input', () => filterFreqValue.textContent = filterFreqInput.value);
+            filterQInput.addEventListener('input', () => filterQValue.textContent = filterQInput.value);
+
+            filterBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const sampleRate = 44100;
+                const freq = parseFloat(filterFreqInput.value);
+                const q = parseFloat(filterQInput.value);
+
+                // Generate frequency response (simplified)
+                ctx.clearRect(0, 0, filterCanvas.width, filterCanvas.height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#764ba2';
+                ctx.lineWidth = 2;
+
+                for (let i = 0; i < filterCanvas.width; i++) {
+                    const f = (i / filterCanvas.width) * (sampleRate / 2);
+                    let response = 1.0;
+
+                    // Simple filter response approximation
+                    if (filterTypeSelect.value === 'lowpass') {
+                        response = 1 / Math.sqrt(1 + Math.pow(f / freq, 4));
+                    } else if (filterTypeSelect.value === 'highpass') {
+                        response = 1 / Math.sqrt(1 + Math.pow(freq / f, 4));
+                    }
+
+                    const x = i;
+                    const y = filterCanvas.height - response * filterCanvas.height;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Add labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(`${filterTypeSelect.value} - Freq: ${freq}Hz, Q: ${q}`, 10, 20);
+            });
+        }
+
+        function setupDelayDemo() {
+            const delayTimeInput = document.getElementById('delayTime');
+            const delayFeedbackInput = document.getElementById('delayFeedback');
+            const delayWetInput = document.getElementById('delayWet');
+            const delayTimeValue = document.getElementById('delayTimeValue');
+            const delayFeedbackValue = document.getElementById('delayFeedbackValue');
+            const delayWetValue = document.getElementById('delayWetValue');
+            const delayBtn = document.getElementById('delayBtn');
+            const delayCanvas = document.getElementById('delayCanvas');
+            const ctx = delayCanvas.getContext('2d');
+
+            // Set canvas size
+            delayCanvas.width = delayCanvas.offsetWidth;
+            delayCanvas.height = delayCanvas.offsetHeight;
+
+            delayTimeInput.addEventListener('input', () => delayTimeValue.textContent = delayTimeInput.value);
+            delayFeedbackInput.addEventListener('input', () => delayFeedbackValue.textContent = delayFeedbackInput.value);
+            delayWetInput.addEventListener('input', () => delayWetValue.textContent = delayWetInput.value);
+
+            delayBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const sampleRate = 44100;
+                const delayTime = parseFloat(delayTimeInput.value);
+                const feedback = parseFloat(delayFeedbackInput.value) / 100;
+                const wet = parseFloat(delayWetInput.value) / 100;
+
+                // Generate impulse response
+                const impulseLength = Math.ceil(sampleRate * 2); // 2 seconds
+                const impulse = new Float32Array(impulseLength);
+                impulse[0] = 1.0; // Impulse at start
+
+                // Create delay line
+                const delaySamples = Math.floor(sampleRate * delayTime / 1000);
+                const delay = new wasmModule.WasmDelay(delaySamples);
+
+                // Process impulse through delay
+                const output = new Float32Array(impulseLength);
+                for (let i = 0; i < impulseLength; i++) {
+                    const inputSample = impulse[i];
+                    const delayedSample = delay.process(inputSample, feedback, wet);
+                    output[i] = delayedSample;
+                }
+
+                // Visualize impulse response
+                ctx.clearRect(0, 0, delayCanvas.width, delayCanvas.height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 2;
+
+                const samplesToShow = Math.min(impulseLength, delayCanvas.width);
+                for (let i = 0; i < samplesToShow; i++) {
+                    const x = (i / samplesToShow) * delayCanvas.width;
+                    const y = delayCanvas.height / 2 - output[i] * delayCanvas.height / 4;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Add labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(`Delay: ${delayTime}ms, Feedback: ${(feedback * 100).toFixed(0)}%, Wet: ${(wet * 100).toFixed(0)}%`, 10, 20);
+            });
+        }
+
+        function setupEnvelopeDemo() {
+            const envAttackInput = document.getElementById('envAttack');
+            const envDecayInput = document.getElementById('envDecay');
+            const envSustainInput = document.getElementById('envSustain');
+            const envReleaseInput = document.getElementById('envRelease');
+            const envAttackValue = document.getElementById('envAttackValue');
+            const envDecayValue = document.getElementById('envDecayValue');
+            const envSustainValue = document.getElementById('envSustainValue');
+            const envReleaseValue = document.getElementById('envReleaseValue');
+            const envBtn = document.getElementById('envBtn');
+            const envCanvas = document.getElementById('envCanvas');
+            const ctx = envCanvas.getContext('2d');
+
+            // Set canvas size
+            envCanvas.width = envCanvas.offsetWidth;
+            envCanvas.height = envCanvas.offsetHeight;
+
+            envAttackInput.addEventListener('input', () => envAttackValue.textContent = envAttackInput.value);
+            envDecayInput.addEventListener('input', () => envDecayValue.textContent = envDecayInput.value);
+            envSustainInput.addEventListener('input', () => envSustainValue.textContent = envSustainInput.value);
+            envReleaseInput.addEventListener('input', () => envReleaseValue.textContent = envReleaseInput.value);
+
+            envBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const sampleRate = 44100;
+                const attack = parseFloat(envAttackInput.value) / 1000; // Convert ms to seconds
+                const decay = parseFloat(envDecayInput.value) / 1000;
+                const sustain = parseFloat(envSustainInput.value) / 100;
+
+                // Generate envelope over time (simplified ADS envelope)
+                const duration = 2.0; // 2 seconds
+                const numSamples = Math.floor(sampleRate * duration);
+                const envelopeValues = [];
+
+                // Simulate note on/off
+                const noteOnTime = 0.5; // Note on at 0.5s
+                const noteOffTime = 1.5; // Note off at 1.5s
+
+                for (let i = 0; i < numSamples; i++) {
+                    const time = i / sampleRate;
+                    let envelopeValue = 0;
+
+                    if (time >= noteOnTime && time < noteOffTime) {
+                        // Attack phase
+                        if (time - noteOnTime < attack) {
+                            envelopeValue = (time - noteOnTime) / attack;
+                        }
+                        // Decay/Sustain phase
+                        else {
+                            const timeInSustain = time - noteOnTime - attack;
+                            const decayTime = decay;
+                            if (timeInSustain < decayTime) {
+                                envelopeValue = 1.0 - (1.0 - sustain) * (timeInSustain / decayTime);
+                            } else {
+                                envelopeValue = sustain;
+                            }
+                        }
+                    } else if (time >= noteOffTime) {
+                        // Release phase
+                        const releaseTime = parseFloat(envReleaseInput.value) / 1000;
+                        const timeInRelease = time - noteOffTime;
+                        if (timeInRelease < releaseTime) {
+                            envelopeValue = sustain * (1.0 - timeInRelease / releaseTime);
+                        }
+                    }
+
+                    envelopeValues.push(envelopeValue);
+                }
+
+                // Visualize envelope
+                ctx.clearRect(0, 0, envCanvas.width, envCanvas.height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#f39c12';
+                ctx.lineWidth = 2;
+
+                for (let i = 0; i < envelopeValues.length; i++) {
+                    const x = (i / envelopeValues.length) * envCanvas.width;
+                    const y = envCanvas.height - envelopeValues[i] * envCanvas.height;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Add labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(`ADSR: A${(attack * 1000).toFixed(0)} D${(decay * 1000).toFixed(0)} S${(sustain * 100).toFixed(0)}`, 10, 20);
+            });
+        }
+
+        function setupMicrophoneDemo() {
+            const micStartBtn = document.getElementById('micStartBtn');
+            const micStopBtn = document.getElementById('micStopBtn');
+            const micModeSelect = document.getElementById('micMode');
+            const micFilterInput = document.getElementById('micFilter');
+            const micFilterValue = document.getElementById('micFilterValue');
+            const micCanvas = document.getElementById('micCanvas');
+            const micStatus = document.getElementById('micStatus');
+            const ctx = micCanvas.getContext('2d');
+            let audioContext = null;
+            let analyser = null;
+            let microphone = null;
+            let animationId = null;
+            let fft = null;
+            let filter = null;
+
+            // Set canvas size
+            micCanvas.width = micCanvas.offsetWidth;
+            micCanvas.height = micCanvas.offsetHeight;
+
+            micFilterInput.addEventListener('input', () => micFilterValue.textContent = micFilterInput.value);
+
+            micStartBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                try {
+                    // Start recording
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 2048;
+
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    const freqData = new Uint8Array(bufferLength);
+
+                    // Get microphone access
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+
+                    // Create FFT and filter for processing
+                    fft = new wasmModule.WasmFFT(2048);
+                    filter = new wasmModule.WasmBiquad();
+
+                    micStartBtn.disabled = true;
+                    micStopBtn.disabled = false;
+                    micStatus.textContent = '🎤 Recording...';
+
+                    function draw() {
+                        animationId = requestAnimationFrame(draw);
+
+                        if (micModeSelect.value === 'waveform') {
+                            analyser.getByteTimeDomainData(dataArray);
+
+                            ctx.clearRect(0, 0, micCanvas.width, micCanvas.height);
+                            ctx.beginPath();
+                            ctx.strokeStyle = '#9b59b6';
+                            ctx.lineWidth = 2;
+
+                            for (let i = 0; i < bufferLength; i++) {
+                                const x = (i / bufferLength) * micCanvas.width;
+                                const y = (dataArray[i] / 128) * micCanvas.height;
+
+                                if (i === 0) ctx.moveTo(x, y);
+                                else ctx.lineTo(x, y);
+                            }
+                            ctx.stroke();
+
+                        } else if (micModeSelect.value === 'fft') {
+                            analyser.getByteFrequencyData(freqData);
+
+                            // Process with WASM FFT for additional analysis
+                            const realIn = new Float32Array(2048);
+                            const imagIn = new Float32Array(2048);
+                            const realOut = new Float32Array(2048);
+                            const imagOut = new Float32Array(2048);
+
+                            // Convert to float and normalize
+                            for (let i = 0; i < 2048; i++) {
+                                realIn[i] = freqData[i] / 128 - 1;
+                                imagIn[i] = 0;
+                            }
+
+                            fft.fft_forward(realIn, imagIn, realOut, imagOut);
+
+                            // Visualize spectrum
+                            ctx.clearRect(0, 0, micCanvas.width, micCanvas.height);
+                            ctx.beginPath();
+                            ctx.strokeStyle = '#9b59b6';
+                            ctx.lineWidth = 2;
+
+                            const halfSize = 1024;
+                            for (let i = 0; i < halfSize; i++) {
+                                const magnitude = Math.sqrt(realOut[i] * realOut[i] + imagOut[i] * imagOut[i]);
+                                const x = (i / halfSize) * micCanvas.width;
+                                const y = micCanvas.height - (magnitude / 512) * micCanvas.height;
+
+                                if (i === 0) ctx.moveTo(x, y);
+                                else ctx.lineTo(x, y);
+                            }
+                            ctx.stroke();
+
+                        } else if (micModeSelect.value === 'filter') {
+                            analyser.getByteTimeDomainData(dataArray);
+
+                            // Apply filter
+                            const filterFreq = parseFloat(micFilterInput.value);
+                            filter.set_lowpass(44100, filterFreq, 0.707);
+
+                            const filteredData = new Float32Array(bufferLength);
+                            for (let i = 0; i < bufferLength; i++) {
+                                filteredData[i] = filter.process((dataArray[i] - 128) / 128);
+                            }
+
+                            ctx.clearRect(0, 0, micCanvas.width, micCanvas.height);
+                            ctx.beginPath();
+                            ctx.strokeStyle = '#e74c3c';
+                            ctx.lineWidth = 2;
+
+                            for (let i = 0; i < bufferLength; i++) {
+                                const x = (i / bufferLength) * micCanvas.width;
+                                const y = (filteredData[i] * 128 + 128) / 256 * micCanvas.height;
+
+                                if (i === 0) ctx.moveTo(x, y);
+                                else ctx.lineTo(x, y);
+                            }
+                            ctx.stroke();
+                        }
+
+                        // Add labels
+                        ctx.fillStyle = '#333';
+                        ctx.font = '12px Arial';
+                        ctx.fillText(`${micModeSelect.value} - ${micFilterInput.value}Hz filter`, 10, 20);
+                    }
+
+                    draw();
+
+                } catch (error) {
+                    console.error('Microphone access error:', error);
+                    micStatus.textContent = '❌ Microphone access denied';
+                    micStartBtn.disabled = false;
+                    micStopBtn.disabled = true;
+                }
+            });
+
+            micStopBtn.addEventListener('click', () => {
+                if (microphone) microphone.disconnect();
+                if (animationId) cancelAnimationFrame(animationId);
+                if (audioContext) audioContext.close();
+                audioContext = null;
+                analyser = null;
+                microphone = null;
+                fft = null;
+                filter = null;
+                micStartBtn.disabled = false;
+                micStopBtn.disabled = true;
+                micStatus.textContent = '⏹️ Stopped';
+                ctx.clearRect(0, 0, micCanvas.width, micCanvas.height);
+            });
+        }
+
+        function setupWindowDemo() {
+            const windowTypeSelect = document.getElementById('windowType');
+            const windowBtn = document.getElementById('windowBtn');
+            const windowCanvas = document.getElementById('windowCanvas');
+            const ctx = windowCanvas.getContext('2d');
+
+            // Set canvas size
+            windowCanvas.width = windowCanvas.offsetWidth;
+            windowCanvas.height = windowCanvas.offsetHeight;
+
+            windowBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const windowSize = 512;
+
+                // Generate window (simplified visualization)
+                ctx.clearRect(0, 0, windowCanvas.width, windowCanvas.height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#28a745';
+                ctx.lineWidth = 2;
+
+                for (let i = 0; i < windowCanvas.width; i++) {
+                    const t = i / windowCanvas.width;
+                    let windowValue = 1.0;
+
+                    // Simple window approximations
+                    switch (windowTypeSelect.value) {
+                        case 'hann':
+                            windowValue = 0.5 - 0.5 * Math.cos(2 * Math.PI * t);
+                            break;
+                        case 'hamming':
+                            windowValue = 0.54 - 0.46 * Math.cos(2 * Math.PI * t);
+                            break;
+                        case 'blackman':
+                            windowValue = 0.42 - 0.5 * Math.cos(2 * Math.PI * t) + 0.08 * Math.cos(4 * Math.PI * t);
+                            break;
+                        case 'kaiser':
+                            // Simplified Kaiser window approximation
+                            const beta = 8.6;
+                            const x = 2 * t - 1;
+                            windowValue = Math.cosh(beta * Math.sqrt(1 - x * x)) / Math.cosh(beta);
+                            break;
+                    }
+
+                    const x = i;
+                    const y = windowCanvas.height - windowValue * windowCanvas.height;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Add labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(`${windowTypeSelect.value} Window`, 10, 20);
+            });
+        }
+
+        function setupPerformanceDemo() {
+            const perfSizeInput = document.getElementById('perfSize');
+            const perfSizeValue = document.getElementById('perfSizeValue');
+            const perfBtn = document.getElementById('perfBtn');
+            const perfResult = document.getElementById('perfResult');
+
+            perfSizeInput.addEventListener('input', () => perfSizeValue.textContent = perfSizeInput.value);
+
+            perfBtn.addEventListener('click', async () => {
+                if (!wasmModule) return;
+
+                const testSize = parseInt(perfSizeInput.value);
+                const iterations = 10;
+
+                perfResult.innerHTML = 'Running performance test...';
+
+                let totalTime = 0;
+
+                for (let iter = 0; iter < iterations; iter++) {
+                    // Create FFT for performance test
+                    const fft = new wasmModule.WasmFFT(1024);
+
+                    const start = performance.now();
+
+                    // Run multiple FFTs
+                    for (let i = 0; i < testSize / 1024; i++) {
+                        const realIn = new Float32Array(1024);
+                        const imagIn = new Float32Array(1024);
+                        const realOut = new Float32Array(1024);
+                        const imagOut = new Float32Array(1024);
+
+                        // Fill with test data
+                        for (let j = 0; j < 1024; j++) {
+                            realIn[j] = Math.sin(2 * Math.PI * j / 1024);
+                            imagIn[j] = 0;
+                        }
+
+                        fft.fft_forward(realIn, imagIn, realOut, imagOut);
+                    }
+
+                    const end = performance.now();
+                    totalTime += (end - start);
+                }
+
+                const avgTime = totalTime / iterations;
+                const operationsPerSecond = (testSize / 1024) / (avgTime / 1000);
+
+                perfResult.innerHTML = `
+                    <strong>Performance Results:</strong><br>
+                    Test Size: ${testSize} samples<br>
+                    Average Time: ${avgTime.toFixed(2)}ms<br>
+                    Operations/sec: ${operationsPerSecond.toFixed(0)} FFTs<br>
+                    <small>(Running on ${navigator.hardwareConcurrency || 'unknown'} CPU cores)</small>
+                `;
+            });
+        }
+    </script>
+
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</body>
+</html>

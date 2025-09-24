@@ -9,15 +9,16 @@ use crate::fft::{SimpleFFT, SimpleRealFFT};
 use crate::filters::{Biquad, BiquadDesign, StereoBiquad, FIR};
 use crate::windows::{Kaiser, ApproximateConfinedGaussian};
 use crate::delay::{Delay, InterpolatorLinear};
-use crate::envelopes::{CubicLfo, BoxFilter, PeakHold};
+use crate::envelopes::{CubicLfo, BoxSum, BoxFilter, BoxStackFilter, PeakHold, PeakDecayLinear};
 use crate::stft::STFT;
 use crate::curves::{Linear, Cubic, CubicSegmentCurve, Reciprocal};
 use crate::rates;
-use crate::mix::{Hadamard, Householder};
+use crate::mix::{Hadamard, Householder, StereoMultiMixer};
 use crate::perf;
 use crate::spacing::{Spacing, Position};
 use crate::spectral::{WindowedFFT, SpectralProcessor};
 use crate::stretch::SignalsmithStretch;
+use crate::common;
 
 /// FFT functions for f32
 #[wasm_bindgen]
@@ -306,6 +307,19 @@ impl WasmGaussian {
     }
 }
 
+/// Window utilities
+#[wasm_bindgen]
+pub struct WasmWindowUtils;
+
+#[wasm_bindgen]
+impl WasmWindowUtils {
+    /// Force perfect reconstruction for STFT windows
+    #[wasm_bindgen]
+    pub fn force_perfect_reconstruction(data: &mut [f32], window_length: usize, interval: usize) {
+        crate::windows::force_perfect_reconstruction(data, window_length, interval);
+    }
+}
+
 /// Delay line for f32
 #[wasm_bindgen]
 pub struct WasmDelay {
@@ -422,6 +436,117 @@ impl WasmPeakHold {
     }
 }
 
+/// Box sum for moving averages
+#[wasm_bindgen]
+pub struct WasmBoxSum {
+    box_sum: BoxSum<f32>,
+    max_length: usize,
+}
+
+#[wasm_bindgen]
+impl WasmBoxSum {
+    #[wasm_bindgen(constructor)]
+    pub fn new(max_length: usize) -> WasmBoxSum {
+        WasmBoxSum {
+            box_sum: BoxSum::new(max_length),
+            max_length,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn process(&mut self, input: f32, width: usize) -> f32 {
+        self.box_sum.read_write(input, width)
+    }
+
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.box_sum.reset(0.0);
+    }
+
+    #[wasm_bindgen]
+    pub fn resize(&mut self, max_length: usize) {
+        self.box_sum.resize(max_length);
+        self.max_length = max_length;
+    }
+
+    #[wasm_bindgen]
+    pub fn length(&self) -> usize {
+        self.max_length
+    }
+}
+
+/// Box stack filter for multi-layer smoothing
+#[wasm_bindgen]
+pub struct WasmBoxStackFilter {
+    filter: BoxStackFilter<f32>,
+}
+
+#[wasm_bindgen]
+impl WasmBoxStackFilter {
+    #[wasm_bindgen(constructor)]
+    pub fn new(max_size: usize, layers: usize) -> WasmBoxStackFilter {
+        WasmBoxStackFilter {
+            filter: BoxStackFilter::new(max_size, layers),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn process(&mut self, input: f32) -> f32 {
+        self.filter.process(input)
+    }
+
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.filter.reset();
+    }
+
+    #[wasm_bindgen]
+    pub fn resize(&mut self, max_size: usize, layers: usize) {
+        self.filter.resize(max_size, layers);
+    }
+
+    #[wasm_bindgen]
+    pub fn optimal_ratios(layers: usize) -> Vec<f32> {
+        BoxStackFilter::<f32>::optimal_ratios(layers)
+    }
+}
+
+/// Peak decay with linear decay
+#[wasm_bindgen]
+pub struct WasmPeakDecayLinear {
+    filter: PeakDecayLinear<f32>,
+}
+
+#[wasm_bindgen]
+impl WasmPeakDecayLinear {
+    #[wasm_bindgen(constructor)]
+    pub fn new(max_length: usize) -> WasmPeakDecayLinear {
+        WasmPeakDecayLinear {
+            filter: PeakDecayLinear::new(max_length),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn process(&mut self, input: f32) -> f32 {
+        self.filter.process(input)
+    }
+
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.filter.reset();
+    }
+
+    #[wasm_bindgen]
+    pub fn resize(&mut self, max_length: usize) {
+        self.filter.resize(max_length);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_length(&mut self, length: f32) {
+        self.filter.set(length);
+    }
+}
+
 /// STFT (Short-time Fourier Transform) for f32
 #[wasm_bindgen]
 pub struct WasmSTFT {
@@ -483,6 +608,13 @@ impl WasmLinearCurve {
     }
 
     #[wasm_bindgen]
+    pub fn with_values(a0: f32, a1: f32) -> WasmLinearCurve {
+        WasmLinearCurve {
+            curve: Linear::with_values(a0, a1),
+        }
+    }
+
+    #[wasm_bindgen]
     pub fn evaluate(&self, x: f32) -> f32 {
         self.curve.evaluate(x)
     }
@@ -516,6 +648,14 @@ impl WasmCubicCurve {
     #[wasm_bindgen]
     pub fn start(&self) -> f32 {
         self.curve.start()
+    }
+
+    /// Create a cubic curve using Hermite interpolation
+    #[wasm_bindgen]
+    pub fn hermite(x0: f32, x1: f32, y0: f32, y1: f32, g0: f32, g1: f32) -> WasmCubicCurve {
+        WasmCubicCurve {
+            curve: Cubic::hermite(x0, x1, y0, y1, g0, g1),
+        }
     }
 }
 
@@ -598,6 +738,13 @@ impl WasmReciprocalCurve {
     }
 
     #[wasm_bindgen]
+    pub fn bark_range(low_hz: f32, high_hz: f32) -> WasmReciprocalCurve {
+        WasmReciprocalCurve {
+            curve: Reciprocal::bark_range(low_hz, high_hz),
+        }
+    }
+
+    #[wasm_bindgen]
     pub fn evaluate(&self, x: f32) -> f32 {
         self.curve.evaluate(x)
     }
@@ -654,6 +801,18 @@ impl WasmSpectralUtils {
     #[wasm_bindgen]
     pub fn db_to_linear(db: f32) -> f32 {
         crate::spectral::utils::db_to_linear(db)
+    }
+
+    /// Find the smallest size >= input that is efficient for FFT
+    #[wasm_bindgen]
+    pub fn fast_size_above(size: usize, divisor: usize) -> usize {
+        WindowedFFT::<f32>::fast_size_above(size, divisor)
+    }
+
+    /// Find the largest size <= input that is efficient for FFT
+    #[wasm_bindgen]
+    pub fn fast_size_below(size: usize, divisor: usize) -> usize {
+        WindowedFFT::<f32>::fast_size_below(size, divisor)
     }
 }
 
@@ -770,6 +929,61 @@ impl WasmHouseholderMixer {
     #[wasm_bindgen]
     pub fn mix_in_place(&self, data: &mut [f32]) {
         self.mixer.in_place(data);
+    }
+}
+
+/// Stereo to multi-channel mixer
+#[wasm_bindgen]
+pub struct WasmStereoMultiMixer {
+    mixer: StereoMultiMixer<f32>,
+}
+
+#[wasm_bindgen]
+impl WasmStereoMultiMixer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(channels: usize) -> WasmStereoMultiMixer {
+        WasmStereoMultiMixer {
+            mixer: StereoMultiMixer::new(channels),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn stereo_to_multi(&self, left: f32, right: f32, output: &mut [f32]) {
+        let input = [left, right];
+        self.mixer.stereo_to_multi(&input, output);
+    }
+
+    #[wasm_bindgen]
+    pub fn multi_to_stereo(&self, input: &[f32]) -> Vec<f32> {
+        let mut output = [0.0f32, 0.0f32];
+        self.mixer.multi_to_stereo(input, &mut output);
+        vec![output[0], output[1]]
+    }
+
+    #[wasm_bindgen]
+    pub fn scaling_factor1(&self) -> f32 {
+        self.mixer.scaling_factor1()
+    }
+
+    #[wasm_bindgen]
+    pub fn scaling_factor2(&self) -> f32 {
+        self.mixer.scaling_factor2()
+    }
+}
+
+/// Mixing utilities
+#[wasm_bindgen]
+pub struct WasmMixUtils;
+
+#[wasm_bindgen]
+impl WasmMixUtils {
+    /// Cheap energy-preserving crossfade
+    #[wasm_bindgen]
+    pub fn cheap_energy_crossfade(x: f32) -> Vec<f32> {
+        let mut to_coeff = 0.0f32;
+        let mut from_coeff = 0.0f32;
+        crate::mix::cheap_energy_crossfade(x, &mut to_coeff, &mut from_coeff);
+        vec![to_coeff, from_coeff]
     }
 }
 
@@ -944,13 +1158,39 @@ impl WasmTimeStretch {
     }
 }
 
-/// Utility functions
+/// Common utilities and version information
 #[wasm_bindgen]
-pub fn create_complex_array(size: usize) -> Vec<f32> {
-    vec![0.0; size * 2] // real and imaginary parts interleaved
-}
+pub struct WasmCommon;
 
 #[wasm_bindgen]
-pub fn add(a: f64, b: f64) -> f64 {
-    a + b
+impl WasmCommon {
+    /// Get the major version number
+    #[wasm_bindgen]
+    pub fn version_major() -> u32 {
+        common::VERSION_MAJOR
+    }
+
+    /// Get the minor version number
+    #[wasm_bindgen]
+    pub fn version_minor() -> u32 {
+        common::VERSION_MINOR
+    }
+
+    /// Get the patch version number
+    #[wasm_bindgen]
+    pub fn version_patch() -> u32 {
+        common::VERSION_PATCH
+    }
+
+    /// Get the full version string
+    #[wasm_bindgen]
+    pub fn version_string() -> String {
+        common::VERSION_STRING.to_string()
+    }
+
+    /// Check if a version is compatible
+    #[wasm_bindgen]
+    pub fn version_check(major: u32, minor: u32, patch: u32) -> bool {
+        common::version_check(major, minor, patch)
+    }
 }
