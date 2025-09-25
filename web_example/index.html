@@ -159,7 +159,7 @@
         }
 
         .status.error {
-            background: rgba(231, 76, 60, 0.2);
+            background: rgba(
             border: 1px solid rgba(231, 76, 60, 0.3);
         }
 
@@ -291,6 +291,21 @@
                     <label><input type="checkbox" id="chorus-enabled"> Enable Chorus</label>
                 </div>
             </div>
+
+            <div class="control-group">
+                <h3>🌈 Phaser</h3>
+                <div class="slider-container">
+                    <label for="phaser-mix">Mix: <span id="phaser-mix-value">0.5</span></label>
+                    <input type="range" id="phaser-mix" min="0.0" max="1.0" value="0.5" step="0.01">
+                </div>
+                <div class="slider-container">
+                    <label for="phaser-depth">Depth: <span id="phaser-depth-value">0.5</span></label>
+                    <input type="range" id="phaser-depth" min="0.0" max="1.0" value="0.5" step="0.01">
+                </div>
+                <div style="margin-top: 10px;">
+                    <label><input type="checkbox" id="phaser-enabled"> Enable Phaser</label>
+                </div>
+            </div>
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
@@ -313,6 +328,7 @@
                 <li><strong>Distortion:</strong> Soft-clipping distortion with drive and amount controls</li>
                 <li><strong>Reverb:</strong> Schroeder reverb with adjustable mix and decay</li>
                 <li><strong>Chorus:</strong> Multi-voice chorus effect with modulation depth control</li>
+                <li><strong>Phaser:</strong> All-pass filter phaser with LFO modulation and adjustable mix/depth</li>
             </ul>
             <p><strong>Features:</strong></p>
             <ul>
@@ -577,6 +593,17 @@
                 }
             }
 
+            updatePhaser() {
+                if (this.worklet && this.isProcessing) {
+                    const mix = this.getPhaserMix();
+                    const depth = this.getPhaserDepth();
+                    this.worklet.port.postMessage({
+                        type: 'updatePhaser',
+                        data: { mix, depth }
+                    });
+                }
+            }
+
             toggleEffect(effect, enabled) {
                 if (this.worklet && this.isProcessing) {
                     this.worklet.port.postMessage({
@@ -600,6 +627,8 @@
             getReverbDecay() { return parseFloat(document.getElementById('reverb-decay').value); }
             getChorusMix() { return parseFloat(document.getElementById('chorus-mix').value); }
             getChorusDepth() { return parseFloat(document.getElementById('chorus-depth').value); }
+            getPhaserMix() { return parseFloat(document.getElementById('phaser-mix').value); }
+            getPhaserDepth() { return parseFloat(document.getElementById('phaser-depth').value); }
         }
 
         // Initialize the application
@@ -662,6 +691,8 @@
                         processor.updateReverb();
                     } else if (slider.id === 'chorus-mix' || slider.id === 'chorus-depth') {
                         processor.updateChorus();
+                    } else if (slider.id === 'phaser-mix' || slider.id === 'phaser-depth') {
+                        processor.updatePhaser();
                     }
                     delete updateThrottle[slider.id];
                 }, 16); // ~60fps throttling (16ms)

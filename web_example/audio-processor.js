@@ -272,6 +272,69 @@ class SimpleChorus {
     }
 }
 
+// Simple Phaser Effect
+class SimplePhaser {
+    constructor(sampleRate) {
+        this.sampleRate = sampleRate;
+        this.allpassFilters = [];
+        
+        // Create 4 all-pass filters for the phaser
+        for (let i = 0; i < 4; i++) {
+            this.allpassFilters.push({
+                delay: Math.floor((0.005 + i * 0.002) * sampleRate), // 5ms to 11ms delays
+                feedback: 0.7,
+                buffer: new Float32Array(Math.ceil(0.015 * sampleRate)), // 15ms max
+                writeIndex: 0
+            });
+        }
+        
+        this.lfo = new SimpleLFO();
+        this.lfo.set_frequency(0.5, sampleRate); // 0.5 Hz modulation
+        
+        this.mix = 0.5;
+        this.depth = 0.5;
+    }
+
+    set_mix(value) {
+        this.mix = value;
+    }
+
+    set_depth(value) {
+        this.depth = value;
+    }
+
+    process(input, output) {
+        // Start with input
+        for (let i = 0; i < input.length; i++) {
+            output[i] = input[i];
+        }
+
+        // Get LFO value for modulation
+        const lfoValue = this.lfo.process();
+        
+        // Process through all-pass filters with modulated feedback
+        for (let filter of this.allpassFilters) {
+            const modulatedFeedback = filter.feedback * (1 + lfoValue * this.depth);
+            
+            for (let i = 0; i < input.length; i++) {
+                const readIndex = (filter.writeIndex - filter.delay + filter.buffer.length) % filter.buffer.length;
+                const delayed = filter.buffer[readIndex];
+                
+                const filtered = output[i] + delayed * modulatedFeedback;
+                filter.buffer[filter.writeIndex] = filtered;
+                filter.writeIndex = (filter.writeIndex + 1) % filter.buffer.length;
+                
+                output[i] = filtered * -modulatedFeedback + delayed;
+            }
+        }
+
+        // Mix dry/wet
+        for (let i = 0; i < input.length; i++) {
+            output[i] = input[i] * (1 - this.mix) + output[i] * this.mix;
+        }
+    }
+}
+
 class CuteDSPProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
@@ -281,6 +344,7 @@ class CuteDSPProcessor extends AudioWorkletProcessor {
         this.distortion = null;
         this.reverb = null;
         this.chorus = null;
+        this.phaser = null;
         this.sampleRate = sampleRate;
         this.isInitialized = false;
 
@@ -290,7 +354,8 @@ class CuteDSPProcessor extends AudioWorkletProcessor {
             delay: true,
             distortion: false,
             reverb: false,
-            chorus: false
+            chorus: false,
+            phaser: false
         };
 
         // Pre-allocate buffers to avoid allocations during processing
@@ -343,6 +408,12 @@ class CuteDSPProcessor extends AudioWorkletProcessor {
                         this.chorus.set_depth(data.depth);
                     }
                     break;
+                case 'updatePhaser':
+                    if (this.phaser) {
+                        this.phaser.set_mix(data.mix);
+                        this.phaser.set_depth(data.depth);
+                    }
+                    break;
                 case 'toggleEffect':
                     if (this.effectsEnabled.hasOwnProperty(data.effect)) {
                         this.effectsEnabled[data.effect] = data.enabled;
@@ -377,6 +448,10 @@ class CuteDSPProcessor extends AudioWorkletProcessor {
             this.chorus = new SimpleChorus(this.sampleRate);
             this.chorus.set_mix(0.4);
             this.chorus.set_depth(0.005);
+
+            this.phaser = new SimplePhaser(this.sampleRate);
+            this.phaser.set_mix(0.5);
+            this.phaser.set_depth(0.5);
 
             this.isInitialized = true;
             this.port.postMessage({ type: 'ready' });
@@ -474,6 +549,12 @@ class CuteDSPProcessor extends AudioWorkletProcessor {
         // Apply reverb last (if enabled)
         if (this.effectsEnabled.reverb) {
             this.reverb.process(output, this.tempBuffer1);
+            [output, this.tempBuffer1] = [this.tempBuffer1, output]; // Swap buffers
+        }
+
+        // Apply phaser (if enabled)
+        if (this.effectsEnabled.phaser) {
+            this.phaser.process(output, this.tempBuffer1);
             [output, this.tempBuffer1] = [this.tempBuffer1, output]; // Swap buffers
         }
     }
