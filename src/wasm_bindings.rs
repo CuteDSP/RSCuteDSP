@@ -117,8 +117,8 @@ impl WasmBiquad {
     }
 
     #[wasm_bindgen]
-    pub fn lowpass(&mut self, frequency: f32, q: f32) {
-        self.filter.lowpass(frequency, q, BiquadDesign::Cookbook);
+    pub fn lowpass(&mut self, frequency: f32, q: f32, sample_rate: f32) {
+        self.filter.lowpass(frequency / sample_rate, q, BiquadDesign::Cookbook);
     }
 
     #[wasm_bindgen]
@@ -320,25 +320,52 @@ impl WasmWindowUtils {
     }
 }
 
-/// Delay line for f32
+/// Delay effect for f32
 #[wasm_bindgen]
 pub struct WasmDelay {
     delay: Delay<f32, InterpolatorLinear<f32>>,
+    delay_samples: f32,
+    feedback: f32,
+    sample_rate: f32,
 }
 
 #[wasm_bindgen]
 impl WasmDelay {
     #[wasm_bindgen(constructor)]
-    pub fn new(max_delay: usize) -> WasmDelay {
-        WasmDelay {
-            delay: Delay::new(InterpolatorLinear::new(), max_delay),
-        }
+    pub fn new(max_delay_seconds: f32, sample_rate: f32) -> WasmDelay {
+        let max_samples = (max_delay_seconds * sample_rate) as usize;
+        let mut delay = WasmDelay {
+            delay: Delay::new(InterpolatorLinear::new(), max_samples),
+            delay_samples: 0.3 * sample_rate, // default 300ms
+            feedback: 0.4, // default feedback
+            sample_rate,
+        };
+        delay.reset(); // Initialize with zeros
+        delay
     }
 
     #[wasm_bindgen]
-    pub fn process(&mut self, input: f32, delay_samples: f32) -> f32 {
-        self.delay.write(input);
-        self.delay.read(delay_samples)
+    pub fn set_delay_time(&mut self, delay_seconds: f32) {
+        self.delay_samples = delay_seconds * self.sample_rate;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_feedback(&mut self, feedback: f32) {
+        self.feedback = feedback;
+    }
+
+    #[wasm_bindgen]
+    pub fn process_buffer(&mut self, input: &[f32], output: &mut [f32]) {
+        for i in 0..input.len() {
+            // Read delayed sample
+            let delayed = self.delay.read(self.delay_samples);
+            // Mix input with feedback from delayed output
+            let wet = input[i] + delayed * self.feedback;
+            // Write to delay line
+            self.delay.write(wet);
+            // Output is the wet signal
+            output[i] = wet;
+        }
     }
 
     #[wasm_bindgen]
@@ -368,8 +395,11 @@ impl WasmLFO {
     }
 
     #[wasm_bindgen]
-    pub fn set_params(&mut self, low: f32, high: f32, rate: f32, rate_variation: f32, depth_variation: f32) {
-        self.lfo.set(low, high, rate, rate_variation, depth_variation);
+    pub fn set_frequency(&mut self, frequency: f32, sample_rate: f32) {
+        // Convert frequency to rate (period in samples)
+        // The LFO goes up and down in one period, so rate = sample_rate / (2 * frequency)
+        let rate = sample_rate / (2.0 * frequency);
+        self.lfo.set(-1.0, 1.0, rate, 0.0, 0.0); // low=-1, high=1, no variation
     }
 
     #[wasm_bindgen]
