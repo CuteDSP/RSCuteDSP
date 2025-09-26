@@ -56,8 +56,8 @@ mod wasm_build_tests {
         use cute_dsp::*;
 
         // Test that we can create DSP objects in WASM
-        use cute_dsp::fft::Fft;
-        let _fft = Fft::<f32>::new(512);
+        use cute_dsp::fft::SimpleRealFFT;
+        let _fft = SimpleRealFFT::<f32>::new(512);
 
         use cute_dsp::filters::Biquad;
         let _filter = Biquad::<f32>::new(true);
@@ -87,9 +87,9 @@ mod wasm_build_tests {
     #[wasm_bindgen_test]
     fn test_wasm_performance() {
         use std::time::Instant;
-        use cute_dsp::fft::Fft;
+        use cute_dsp::fft::SimpleRealFFT;
 
-        let mut fft = Fft::<f32>::new(1024);
+        let mut fft = SimpleRealFFT::<f32>::new(1024);
         let mut signal = vec![0.0; 1024];
         let mut spectrum = vec![num_complex::Complex::new(0.0, 0.0); 513];
 
@@ -102,7 +102,7 @@ mod wasm_build_tests {
 
         // Perform multiple FFTs
         for _ in 0..10 {
-            fft.real_fft(&signal, &mut spectrum);
+            fft.fft(&signal, &mut spectrum);
         }
 
         let duration = start.elapsed();
