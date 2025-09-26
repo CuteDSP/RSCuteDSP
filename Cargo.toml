@@ -29,3 +29,21 @@ wasm-bindgen = { version = "0.2", optional = true }
 [dev-dependencies]
 wasm-bindgen-cli = "0.2"
 wasm-bindgen-test = "0.3"
+sycamore = { version = "0.8", features = ["web"] }
+sycamore-web = "0.8"
+web-sys = { version = "0.3", features = [
+  "AudioContext",
+  "AudioBuffer",
+  "AudioBufferSourceNode",
+  "AudioDestinationNode",
+  "AudioNode",
+  "AudioParam",
+  "AudioWorklet",
+  "AudioWorkletNode",
+  "AudioWorkletProcessor",
+  "GainNode",
+  "ScriptProcessorNode",
+  "AnalyserNode",
+  "MediaStreamAudioSourceNode",
+  "console",
+] }
