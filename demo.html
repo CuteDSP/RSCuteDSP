@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>CuteDSP WASM Demo</title>
+</head>
+<body>
+    <h1>CuteDSP WASM Demo</h1>
+    <p>This page demonstrates using the cute_dsp WASM module with microphone input.</p>
+    <button id="start">Start Mic</button>
+    <button id="stop">Stop Mic</button>
+    <button id="test">Play Test Tone</button>
+    <label>Filter Frequency: <input type="range" id="freq" min="100" max="5000" value="5000"></label>
+    <label>Filter Q: <input type="range" id="q" min="0.1" max="2" step="0.1" value="1.0"></label>
+    <p id="status">Status: Stopped</p>
+
+    <script type="module">
+        let audioContext = null;
+        let micSource = null;
+        let filter = null;
+        let gain = null;
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', run);
+        } else {
+            run();
+        }
+
+        async function run() {
+            const startButton = document.getElementById('start');
+            const stopButton = document.getElementById('stop');
+            const testButton = document.getElementById('test');
+            const freqSlider = document.getElementById('freq');
+            const qSlider = document.getElementById('q');
+            const status = document.getElementById('status');
+
+            testButton.addEventListener('click', () => {
+                if (!audioContext) {
+                    audioContext = new AudioContext();
+                }
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                if (!gain) {
+                    gain = audioContext.createGain();
+                    gain.gain.value = 10.0;
+                    gain.connect(audioContext.destination);
+                }
+                const osc = audioContext.createOscillator();
+                osc.frequency.value = 440;
+                osc.connect(gain);
+                osc.start();
+                osc.stop(audioContext.currentTime + 1);
+            });
+
+            startButton.addEventListener('click', async () => {
+                try {
+                    if (!audioContext) {
+                        audioContext = new AudioContext();
+                    }
+                    if (audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    micSource = audioContext.createMediaStreamSource(stream);
+
+                    filter = audioContext.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = parseFloat(freqSlider.value);
+                    filter.Q.value = parseFloat(qSlider.value);
+
+                    gain = audioContext.createGain();
+                    gain.gain.value = 10.0;
+
+                    micSource.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(audioContext.destination);
+
+                    status.textContent = 'Status: Running';
+                } catch (e) {
+                    status.textContent = 'Error: ' + e.message;
+                }
+            });
+
+            stopButton.addEventListener('click', () => {
+                if (micSource) {
+                    micSource.disconnect();
+                }
+                if (filter) {
+                    filter.disconnect();
+                }
+                if (gain) {
+                    gain.disconnect();
+                }
+                if (audioContext) {
+                    audioContext.close();
+                    audioContext = null;
+                }
+                status.textContent = 'Status: Stopped';
+            });
+
+            freqSlider.addEventListener('input', () => {
+                if (filter) {
+                    filter.frequency.value = parseFloat(freqSlider.value);
+                }
+            });
+
+            qSlider.addEventListener('input', () => {
+                if (filter) {
+                    filter.Q.value = parseFloat(qSlider.value);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
