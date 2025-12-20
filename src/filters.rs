@@ -160,7 +160,7 @@ impl<T: Float> Biquad<T> {
         output
     }
 
-    pub fn get_mag_response(&self, normalized_freq: f32) -> Option<T> {
+    pub fn get_mag_response(&self, normalized_freq: f32) -> T {
         let b0_sq = self.b0 * self.b0;
         let b1_sq = self.b1 * self.b1;
         let b2_sq = self.b2 * self.b2;
@@ -182,11 +182,7 @@ impl<T: Float> Biquad<T> {
 
         //handle case where we're at nyquist, at such a case the denumnator will be very small and might cause nan
         //upstream to user via option as the limit value changes depending on the filter type
-        if denumenator < T::from(1e-8).unwrap() {
-            None
-        } else {
-            Some((nuemenator / denumenator).sqrt())
-        }
+        (nuemenator / denumenator).abs().sqrt()
     }
 
     /// Process a buffer of samples through the filter
@@ -638,7 +634,7 @@ mod tests {
         let mut filter = Biquad::<f32>::new(false);
 
         filter.allpass(0.25, 1.0);
-        let resp = filter.get_mag_response(0.1).unwrap();
+        let resp = filter.get_mag_response(0.1);
 
         assert!((resp - 1.0).abs() < 1e-6);
     }
@@ -650,19 +646,19 @@ mod tests {
 
         filter.lowpass(0.1, 0.5, BiquadDesign::Bilinear);
 
-        let resp = filter.get_mag_response(test_freq).unwrap();
-
+        let resp = filter.get_mag_response(test_freq);
         let expected = 0.5;
         assert!((resp - expected).abs() < 1e-6);
     }
 
     #[test]
-    #[should_panic]
-    fn test_mag_response_nyquist() {
+    fn test_mag_response_notch() {
         let mut filter = Biquad::<f32>::new(false);
 
-        filter.allpass(0.5, 1.0);
-        let _ = filter.get_mag_response(0.5).unwrap();
+        filter.notch(1000.0 / 48000.0, 1.0);
+        let res = filter.get_mag_response(996.539611 / 48000.0);
+
+        assert!(!res.is_nan())
     }
 
     #[test]
