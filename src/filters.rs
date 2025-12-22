@@ -4,15 +4,21 @@
 
 #![allow(unused_imports)]
 
+use core::f64;
 #[cfg(feature = "std")]
 use std::f32::consts::FRAC_1_SQRT_2;
 #[cfg(feature = "std")]
 use std::f32::consts::PI;
+#[cfg(feature = "std")]
+use std::f64::consts::TAU;
 
 #[cfg(not(feature = "std"))]
 use core::f32::consts::FRAC_1_SQRT_2;
 #[cfg(not(feature = "std"))]
 use core::f32::consts::PI;
+#[cfg(not(feature = "std"))]
+use core::f64::consts::TAU;
+
 use num_traits::{Float, NumCast};
 
 /// Filter design methods.
@@ -160,14 +166,14 @@ impl<T: Float> Biquad<T> {
         output
     }
 
-    pub fn get_mag_response(&self, normalized_freq: f32) -> T {
+    pub fn get_mag_response(&self, normalized_freq: f64) -> T {
         let b0_sq = self.b0 * self.b0;
         let b1_sq = self.b1 * self.b1;
         let b2_sq = self.b2 * self.b2;
         let a1_sq = self.a1 * self.a1;
         let a2_sq = self.a2 * self.a2;
-        let cos_omega = <T as NumCast>::from((2.0 * PI * normalized_freq).cos()).unwrap();
-        let cos_2omega = <T as NumCast>::from((4.0 * PI * normalized_freq).cos()).unwrap();
+        let cos_omega = <T as NumCast>::from((TAU * normalized_freq).cos()).unwrap();
+        let cos_2omega = <T as NumCast>::from((2.0 * TAU * normalized_freq).cos()).unwrap();
 
         let nuemenator = b0_sq
             + b1_sq
@@ -650,6 +656,22 @@ mod tests {
         let expected = 0.5;
         assert!((resp - expected).abs() < 1e-6);
     }
+
+    #[test]
+    fn test_mag_response_low_cutoff() {
+        let mut filter = Biquad::<f64>::new(false);
+        let test_freq = 1.0/480.0;
+
+        filter.lowpass(1.0/480.0, 0.5, BiquadDesign::Bilinear);
+
+        
+        
+        let resp = filter.get_mag_response(test_freq);
+
+        let expected = 0.5;
+        assert!((resp - expected).abs() < 1e-3);
+    }
+
 
     #[test]
     fn test_mag_response_notch() {
