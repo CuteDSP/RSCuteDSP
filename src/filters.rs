@@ -19,6 +19,7 @@ use core::f32::consts::PI;
 #[cfg(not(feature = "std"))]
 use core::f64::consts::TAU;
 
+use num_complex::Complex;
 use num_traits::{Float, NumCast};
 
 /// Filter design methods.
@@ -167,28 +168,30 @@ impl<T: Float> Biquad<T> {
     }
 
     pub fn get_mag_response(&self, normalized_freq: f64) -> T {
-        let b0_sq = self.b0 * self.b0;
-        let b1_sq = self.b1 * self.b1;
-        let b2_sq = self.b2 * self.b2;
-        let a1_sq = self.a1 * self.a1;
-        let a2_sq = self.a2 * self.a2;
-        let cos_omega = <T as NumCast>::from((TAU * normalized_freq).cos()).unwrap();
-        let cos_2omega = <T as NumCast>::from((2.0 * TAU * normalized_freq).cos()).unwrap();
-
-        let nuemenator = b0_sq
-            + b1_sq
-            + b2_sq
-            + T::from(2.0).unwrap() * cos_omega * (self.b0 * self.b1 + self.b1 * self.b2)
-            + T::from(2.0).unwrap() * cos_2omega * (self.b0 * self.b2);
-        let denumenator = T::from(1.0).unwrap()
-            + a1_sq
-            + a2_sq
-            + T::from(2.0).unwrap() * cos_omega * (self.a1 + self.a1 * self.a2)
-            + T::from(2.0).unwrap() * cos_2omega * self.a2;
 
         //handle case where we're at nyquist, at such a case the denumnator will be very small and might cause nan
         //upstream to user via option as the limit value changes depending on the filter type
-        (nuemenator / denumenator).abs().sqrt()
+        (self.get_complex_response(normalized_freq)).norm()
+    }
+    pub fn get_complex_response(&self, normalized_freq: f64) -> Complex<T> {
+        // 1. Calculate the normalized angular frequency
+        let omega = T::from(TAU * normalized_freq).unwrap();
+
+        // 2. We need z^-1 and z^-2.
+        // Euler's formula: e^(-j*omega) = cos(omega) - j*sin(omega)
+        let z1 = Complex::<T>::from_polar(T::from(1.0).unwrap(), -omega);
+        let z2 = z1 * z1;
+        let zero = T::zero();
+        let numerator = Complex::new(self.b0, zero)
+            + (Complex::new(self.b1, zero) * z1)
+            + (Complex::new(self.b2, zero) * z2);
+
+        // 4. Denominator: 1 + a1*z^-1 + a2*z^-2
+        let denominator = Complex::new(T::one(), zero)
+            + (Complex::new(self.a1, zero) * z1)
+            + (Complex::new(self.a2, zero) * z2);
+
+        numerator / denominator
     }
 
     /// Process a buffer of samples through the filter
@@ -660,18 +663,15 @@ mod tests {
     #[test]
     fn test_mag_response_low_cutoff() {
         let mut filter = Biquad::<f64>::new(false);
-        let test_freq = 1.0/480.0;
+        let test_freq = 1.0 / 480.0;
 
-        filter.lowpass(1.0/480.0, 0.5, BiquadDesign::Bilinear);
+        filter.lowpass(1.0 / 480.0, 0.5, BiquadDesign::Bilinear);
 
-        
-        
         let resp = filter.get_mag_response(test_freq);
 
         let expected = 0.5;
         assert!((resp - expected).abs() < 1e-3);
     }
-
 
     #[test]
     fn test_mag_response_notch() {
