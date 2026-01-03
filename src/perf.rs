@@ -5,6 +5,7 @@
 
 #![allow(unused_imports)]
 
+use std::arch::asm;
 #[cfg(feature = "std")]
 use std::marker::PhantomData;
 
@@ -22,10 +23,7 @@ pub fn mul<T>(a: Complex<T>, b: Complex<T>) -> Complex<T>
 where
     T: num_traits::Float,
 {
-    Complex::new(
-        a.re * b.re - a.im * b.im,
-        a.re * b.im + a.im * b.re,
-    )
+    Complex::new(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re)
 }
 
 /// Complex multiplication with conjugate of the second argument
@@ -34,10 +32,7 @@ pub fn mul_conj<T>(a: Complex<T>, b: Complex<T>) -> Complex<T>
 where
     T: num_traits::Float,
 {
-    Complex::new(
-        b.re * a.re + b.im * a.im,
-        b.re * a.im - b.im * a.re,
-    )
+    Complex::new(b.re * a.re + b.im * a.im, b.re * a.im - b.im * a.re)
 }
 
 /// A utility to stop denormal floating-point values
@@ -61,23 +56,27 @@ impl StopDenormals {
         use std::arch::x86::_mm_getcsr;
         #[cfg(target_arch = "x86")]
         use std::arch::x86::_mm_setcsr;
-        
+
         #[cfg(target_arch = "x86_64")]
         use std::arch::x86_64::_mm_getcsr;
         #[cfg(target_arch = "x86_64")]
         use std::arch::x86_64::_mm_setcsr;
-        
+
         unsafe {
             let csr = _mm_getcsr();
             _mm_setcsr(csr | 0x8040); // Flush-to-Zero and Denormals-Are-Zero
-            Self { control_status_register: csr }
+            Self {
+                control_status_register: csr,
+            }
         }
     }
-    
+
     /// Create a new instance in no_std mode (does nothing)
     #[cfg(not(feature = "std"))]
     pub fn new() -> Self {
-        Self { _phantom: PhantomData }
+        Self {
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -87,15 +86,15 @@ impl Drop for StopDenormals {
     fn drop(&mut self) {
         #[cfg(target_arch = "x86")]
         use std::arch::x86::_mm_setcsr;
-        
+
         #[cfg(target_arch = "x86_64")]
         use std::arch::x86_64::_mm_setcsr;
-        
+
         unsafe {
             _mm_setcsr(self.control_status_register);
         }
     }
-    
+
     #[cfg(not(feature = "std"))]
     fn drop(&mut self) {
         // Do nothing in no_std mode
@@ -130,11 +129,13 @@ impl StopDenormals {
         }
         Self { status }
     }
-    
+
     /// Create a new instance in no_std mode (does nothing)
     #[cfg(not(feature = "std"))]
     pub fn new() -> Self {
-        Self { _phantom: PhantomData }
+        Self {
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -149,7 +150,7 @@ impl Drop for StopDenormals {
             );
         }
     }
-    
+
     #[cfg(not(feature = "std"))]
     fn drop(&mut self) {
         // Do nothing in no_std mode
@@ -176,33 +177,35 @@ pub struct StopDenormals {
 impl StopDenormals {
     /// Create a new instance (does nothing on unsupported architectures)
     pub fn new() -> Self {
-        Self { _phantom: PhantomData }
+        Self {
+            _phantom: PhantomData,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_complex_mul() {
         let a = Complex::new(1.0, 2.0);
         let b = Complex::new(3.0, 4.0);
-        
+
         let result = mul(a, b);
         let expected = a * b;
-        
+
         assert_eq!(result, expected);
     }
-    
+
     #[test]
     fn test_complex_mul_conj() {
         let a = Complex::new(1.0, 2.0);
         let b = Complex::new(3.0, 4.0);
-        
+
         let result = mul_conj(a, b);
         let expected = a * b.conj();
-        
+
         assert_eq!(result, expected);
     }
 }
