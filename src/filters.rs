@@ -384,6 +384,21 @@ impl<T: Float> Biquad<T> {
         );
         self.configure(FilterType::Bandpass, spec, 1.0, bw_design)
     }
+        pub fn bandpass_q(&mut self,freq: T,q:T) -> &mut Self{
+                let bw_design = if self.cookbook_bandwidth {
+            BiquadDesign::Cookbook
+        } else {
+            BiquadDesign::OneSided
+        };
+         
+         let spec = Self::q_spec(
+            <f32 as NumCast>::from(freq).unwrap(),
+            <f32 as NumCast>::from(q).unwrap(),
+            bw_design,
+        );
+        self.configure(FilterType::Bandpass, spec, 1.0, bw_design)
+    }
+    
 
     /// Configure a notch filter
     pub fn notch(&mut self, freq: T, bandwidth_octaves: T) -> &mut Self {
@@ -681,6 +696,18 @@ mod tests {
         let res = filter.get_mag_response(996.539611 / 48000.0);
 
         assert!(!res.is_nan())
+    }
+
+    #[test]
+    fn test_bandpass_q() {
+        let mut filter = Biquad::<f32>::new(true);
+
+
+        filter.bandpass_q(1000.0/48000.0, 1.0);
+
+        let resp = filter.get_mag_response(1000.0/48000.0); 
+        println!("resp is {}",resp);   
+        assert!(resp-1.0.abs()<1e-5);
     }
 
     #[test]
