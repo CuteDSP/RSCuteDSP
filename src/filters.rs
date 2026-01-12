@@ -168,7 +168,6 @@ impl<T: Float> Biquad<T> {
     }
 
     pub fn get_mag_response(&self, normalized_freq: f64) -> T {
-
         //handle case where we're at nyquist, at such a case the denumnator will be very small and might cause nan
         //upstream to user via option as the limit value changes depending on the filter type
         (self.get_complex_response(normalized_freq)).norm()
@@ -384,21 +383,20 @@ impl<T: Float> Biquad<T> {
         );
         self.configure(FilterType::Bandpass, spec, 1.0, bw_design)
     }
-        pub fn bandpass_q(&mut self,freq: T,q:T) -> &mut Self{
-                let bw_design = if self.cookbook_bandwidth {
+    pub fn bandpass_q(&mut self, freq: T, q: T) -> &mut Self {
+        let bw_design = if self.cookbook_bandwidth {
             BiquadDesign::Cookbook
         } else {
             BiquadDesign::OneSided
         };
-         
-         let spec = Self::q_spec(
+
+        let spec = Self::q_spec(
             <f32 as NumCast>::from(freq).unwrap(),
             <f32 as NumCast>::from(q).unwrap(),
             bw_design,
         );
         self.configure(FilterType::Bandpass, spec, 1.0, bw_design)
     }
-    
 
     /// Configure a notch filter
     pub fn notch(&mut self, freq: T, bandwidth_octaves: T) -> &mut Self {
@@ -444,6 +442,18 @@ impl<T: Float> Biquad<T> {
         self.configure(FilterType::LowShelf, spec, sqrt_gain, bw_design)
     }
 
+    pub fn low_shelf_q(&mut self, freq: T, q: T) -> &mut Self {
+        let bw_design = if self.cookbook_bandwidth {
+            BiquadDesign::Cookbook
+        } else {
+            BiquadDesign::OneSided
+        };
+        let mut spec = FreqSpec::new(<f32 as NumCast>::from(freq).unwrap(), bw_design);
+        spec.inv_2q = <f32 as NumCast>::from(T::from(0.5).unwrap() * q.recip()).unwrap();
+        let sqrt_gain = Self::db_to_sqrt_gain(<f32 as NumCast>::from(-6.0).unwrap());
+        self.configure(FilterType::LowShelf, spec, sqrt_gain, bw_design)
+    }
+
     /// Configure a high shelf filter
     pub fn high_shelf(&mut self, freq: T, gain_db: T) -> &mut Self {
         let bw_design = if self.cookbook_bandwidth {
@@ -454,6 +464,18 @@ impl<T: Float> Biquad<T> {
         let mut spec = FreqSpec::new(<f32 as NumCast>::from(freq).unwrap(), bw_design);
         spec.inv_2q = 0.5;
         let sqrt_gain = Self::db_to_sqrt_gain(<f32 as NumCast>::from(gain_db).unwrap());
+        self.configure(FilterType::HighShelf, spec, sqrt_gain, bw_design)
+    }
+
+    pub fn high_shelf_q(&mut self, freq: T, q: T) -> &mut Self {
+        let bw_design = if self.cookbook_bandwidth {
+            BiquadDesign::Cookbook
+        } else {
+            BiquadDesign::OneSided
+        };
+        let mut spec = FreqSpec::new(<f32 as NumCast>::from(freq).unwrap(), bw_design);
+        spec.inv_2q = <f32 as NumCast>::from(T::from(0.5).unwrap() * q.recip()).unwrap();
+        let sqrt_gain = Self::db_to_sqrt_gain(<f32 as NumCast>::from(-6.0).unwrap());
         self.configure(FilterType::HighShelf, spec, sqrt_gain, bw_design)
     }
 
@@ -702,12 +724,11 @@ mod tests {
     fn test_bandpass_q() {
         let mut filter = Biquad::<f32>::new(true);
 
+        filter.bandpass_q(1000.0 / 48000.0, 1.0);
 
-        filter.bandpass_q(1000.0/48000.0, 1.0);
-
-        let resp = filter.get_mag_response(1000.0/48000.0); 
-        println!("resp is {}",resp);   
-        assert!(resp-1.0.abs()<1e-5);
+        let resp = filter.get_mag_response(1000.0 / 48000.0);
+        println!("resp is {}", resp);
+        assert!(resp - 1.0.abs() < 1e-5);
     }
 
     #[test]
