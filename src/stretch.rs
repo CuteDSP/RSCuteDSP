@@ -106,7 +106,7 @@ pub struct SignalsmithStretch<T: Float> {
     // Frequency mapping
     freq_multiplier: T,
     freq_tonality_limit: T,
-    custom_freq_map: Option<Box<dyn Fn(T) -> T>>,
+    custom_freq_map: Option<Box<dyn Fn(T) -> T + Send + Sync + 'static>>,
     
     // Formant processing
     formant_multiplier: T,
