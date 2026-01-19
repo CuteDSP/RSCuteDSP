@@ -1,4 +1,4 @@
-# Signalsmith DSP
+# RSCuteDSP
 
 A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital Signal Processing) algorithms for audio and signal processing. This library implements the same high-quality algorithms as the original C++ library, optimized for Rust performance and ergonomics.
 
