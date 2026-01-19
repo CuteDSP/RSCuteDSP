@@ -75,7 +75,7 @@ impl<T: Float> Prediction<T> {
 }
 
 /// Main time-stretching and pitch-shifting processor
-pub struct SignalsmithStretch<T: Float, R = core::marker::PhantomData<()>> {
+pub struct SignalsmithStretch<T: Float> {
     // Configuration
     split_computation: bool,
     channels: usize,
@@ -113,9 +113,6 @@ pub struct SignalsmithStretch<T: Float, R = core::marker::PhantomData<()>> {
     inv_formant_multiplier: T,
     formant_compensation: bool,
     formant_base_freq: T,
-    
-    // Random engine (placeholder for now)
-    _random_marker: PhantomData<R>,
 }
 
 impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStretch<T> {
@@ -145,8 +142,7 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
             formant_multiplier: T::one(),
             inv_formant_multiplier: T::one(),
             formant_compensation: false,
-            formant_base_freq: T::zero(),
-            _random_marker: PhantomData,
+            formant_base_freq: T::zero()
         }
     }
 

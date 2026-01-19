@@ -1,9 +1,9 @@
 [package]
 name = "cute-dsp"
-version = "0.0.3"
+version = "0.0.31"
 edition = "2021"
 authors = ["CuteDSP Team", "LogicCuteGuy"]
-description = "A Rust clone of the Signalsmith DSP C++ library for audio and signal processing"
+description = "A Rust library for audio and signal processing"
 license = "MIT"
 repository = "https://github.com/CuteDSP/RSCuteDSP"
 keywords = ["dsp", "audio", "signal-processing", "fft", "no-std"]
@@ -27,11 +27,11 @@ num-traits = { version = "0.2" }
 wasm-bindgen = { version = "0.2", optional = true }
 
 [dev-dependencies]
-wasm-bindgen-cli = "0.2"
-wasm-bindgen-test = "0.3"
-sycamore = { version = "0.8", features = ["web"] }
-sycamore-web = "0.8"
-web-sys = { version = "0.3", features = [
+wasm-bindgen-cli = "0.2.108"
+wasm-bindgen-test = "0.3.58"
+sycamore = { version = "0.9.2", features = ["web"] }
+sycamore-web = "0.9.2"
+web-sys = { version = "0.3.85", features = [
   "AudioContext",
   "AudioBuffer",
   "AudioBufferSourceNode",
