@@ -236,7 +236,7 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
     /// Set custom frequency mapping function
     pub fn set_freq_map<F>(&mut self, input_to_output: F)
     where
-        F: Fn(T) -> T + 'static,
+        F: Fn(T) -> T + 'static + Send + Sync,
     {
         self.custom_freq_map = Some(Box::new(input_to_output));
     }
