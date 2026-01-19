@@ -21,7 +21,7 @@ fn complex_fft_example() {
     println!("\nComplex FFT Example:");
     
     // Create a new FFT instance for size 1024
-    let fft = SimpleFFT::<f32>::new(1024);
+    let mut fft = SimpleFFT::<f32>::new(1024);
     
     // Input and output buffers
     let mut time_domain = vec![Complex::new(0.0, 0.0); 1024];

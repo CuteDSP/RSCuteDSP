@@ -153,7 +153,7 @@ impl<T: Float + FromPrimitive> SimpleFFT<T> {
     }
 
     /// Perform a forward FFT
-    pub fn fft(&self, time: &[Complex<T>], freq: &mut [Complex<T>]) {
+    pub fn fft(&mut self, time: &[Complex<T>], freq: &mut [Complex<T>]) {
         let size = self.working.len();
         if size <= 1 {
             if size == 1 {
@@ -161,11 +161,20 @@ impl<T: Float + FromPrimitive> SimpleFFT<T> {
             }
             return;
         }
-        self.fft_pass::<false>(size, 1, time, freq, &mut self.working.clone());
+        let working_size = self.working.len();
+            let working_mut = &mut self.working;
+            Self::fft_pass::<false>(
+                working_size,
+                &self.twiddles,
+                size, 
+                1, 
+                time, 
+                freq, 
+                working_mut);
     }
 
     /// Perform an inverse FFT
-    pub fn ifft(&self, freq: &[Complex<T>], time: &mut [Complex<T>]) {
+    pub fn ifft(&mut self, freq: &[Complex<T>], time: &mut [Complex<T>]) {
         let size = self.working.len();
         if size <= 1 {
             if size == 1 {
@@ -173,7 +182,9 @@ impl<T: Float + FromPrimitive> SimpleFFT<T> {
             }
             return;
         }
-        self.fft_pass::<true>(size, 1, freq, time, &mut self.working.clone());
+        let working_size = self.working.len();
+        let working_mut = &mut self.working;
+        Self::fft_pass::<true>(working_size,&self.twiddles,size, 1, freq, time, working_mut);
     }
 
     /// Perform a forward FFT with split complex representation
@@ -213,8 +224,9 @@ impl<T: Float + FromPrimitive> SimpleFFT<T> {
     }
 
     // Internal implementation of FFT pass
-    fn fft_pass<const INVERSE: bool>(
-        &self,
+     fn fft_pass<const INVERSE: bool>(
+        orignal_working_size:usize,
+        twiddles: &[Complex<T>],
         size: usize,
         stride: usize,
         input: &[Complex<T>],
@@ -223,15 +235,15 @@ impl<T: Float + FromPrimitive> SimpleFFT<T> {
     ) {
         if size / 4 > 1 {
             // Calculate four quarter-size FFTs
-            self.fft_pass::<INVERSE>(size / 4, stride * 4, input, working, output);
-            self.combine4::<INVERSE>(size, stride, working, output);
+            Self::fft_pass::<INVERSE>(orignal_working_size,twiddles,size / 4, stride * 4, input, working, output);
+            Self::combine4::<INVERSE>(orignal_working_size,twiddles,size, stride, working, output);
         } else if size == 4 {
-            self.combine4::<INVERSE>(4, stride, input, output);
+            Self::combine4::<INVERSE>(orignal_working_size,twiddles,4, stride, input, output);
         } else {
             // 2-point FFT
             for s in 0..stride {
-                let a = input[s];
                 let b = input[s + stride];
+                let a = input[s];
                 output[s] = a + b;
                 output[s + stride] = a - b;
             }
@@ -282,18 +294,19 @@ impl<T: Float + FromPrimitive> SimpleFFT<T> {
 
     // Combine interleaved results into a single spectrum
     fn combine4<const INVERSE: bool>(
-        &self,
+        working_buf_len:usize,
+        twiddles: &[Complex<T>],
         size: usize,
         stride: usize,
         input: &[Complex<T>],
         output: &mut [Complex<T>],
     ) {
-        let twiddle_step = self.working.len() / size;
+        let twiddle_step = working_buf_len / size;
         
         for i in 0..size / 4 {
-            let twiddle_b = self.twiddles[i * twiddle_step];
-            let twiddle_c = self.twiddles[i * 2 * twiddle_step];
-            let twiddle_d = self.twiddles[i * 3 * twiddle_step];
+            let twiddle_b = twiddles[i * twiddle_step];
+            let twiddle_c = twiddles[i * 2 * twiddle_step];
+            let twiddle_d = twiddles[i * 3 * twiddle_step];
             
             let input_a = &input[4 * i * stride..];
             let input_b = &input[(4 * i + 1) * stride..];
@@ -610,7 +623,7 @@ impl<T: Float+ FromPrimitive> Pow2FFT<T> {
     }
 
     /// Perform a forward FFT
-    pub fn fft(&self, time: &[Complex<T>], freq: &mut [Complex<T>]) {
+    pub fn fft(&mut self, time: &[Complex<T>], freq: &mut [Complex<T>]) {
         self.simple_fft.fft(time, freq);
     }
 
@@ -620,7 +633,7 @@ impl<T: Float+ FromPrimitive> Pow2FFT<T> {
     }
 
     /// Perform an inverse FFT
-    pub fn ifft(&self, freq: &[Complex<T>], time: &mut [Complex<T>]) {
+    pub fn ifft(&mut self, freq: &[Complex<T>], time: &mut [Complex<T>]) {
         self.simple_fft.ifft(freq, time);
     }
 
@@ -680,7 +693,7 @@ mod tests {
     #[test]
     fn test_simple_fft() {
         // Create a 4-point FFT
-        let fft = SimpleFFT::<f32>::new(4);
+        let mut fft = SimpleFFT::<f32>::new(4);
         
         // Create input and output buffers
         let input = vec![
