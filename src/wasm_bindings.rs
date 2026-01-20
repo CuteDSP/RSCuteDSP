@@ -9,7 +9,7 @@ use crate::fft::{SimpleFFT, SimpleRealFFT};
 use crate::filters::{Biquad, BiquadDesign, StereoBiquad, FIR};
 use crate::windows::{Kaiser, ApproximateConfinedGaussian};
 use crate::delay::{Delay, InterpolatorLinear};
-use crate::envelopes::{CubicLfo, BoxSum, BoxFilter, BoxStackFilter, PeakHold, PeakDecayLinear};
+use crate::envelopes::{CubicLfo, BoxSum, BoxFilter, BoxStackFilter, PeakHold, PeakDecayLinear, Adsr};
 use crate::stft::STFT;
 use crate::curves::{Linear, Cubic, CubicSegmentCurve, Reciprocal};
 use crate::rates;
@@ -18,6 +18,8 @@ use crate::perf;
 use crate::spacing::{Spacing, Position};
 use crate::spectral::{WindowedFFT, SpectralProcessor};
 use crate::stretch::SignalsmithStretch;
+use crate::convolver::Convolver;
+use crate::phase_rotation::{HilbertTransform, PhaseRotator};
 use crate::common;
 
 /// FFT functions for f32
@@ -36,7 +38,7 @@ impl WasmFFT {
     }
 
     #[wasm_bindgen]
-    pub fn fft_forward(&self, real: &[f32], imag: &[f32], out_real: &mut [f32], out_imag: &mut [f32]) {
+    pub fn fft_forward(&mut self, real: &[f32], imag: &[f32], out_real: &mut [f32], out_imag: &mut [f32]) {
         let input: Vec<Complex<f32>> = real.iter().zip(imag.iter())
             .map(|(&r, &i)| Complex::new(r, i))
             .collect();
@@ -51,7 +53,7 @@ impl WasmFFT {
     }
 
     #[wasm_bindgen]
-    pub fn fft_inverse(&self, real: &[f32], imag: &[f32], out_real: &mut [f32], out_imag: &mut [f32]) {
+    pub fn fft_inverse(&mut self, real: &[f32], imag: &[f32], out_real: &mut [f32], out_imag: &mut [f32]) {
         let input: Vec<Complex<f32>> = real.iter().zip(imag.iter())
             .map(|(&r, &i)| Complex::new(r, i))
             .collect();
@@ -405,6 +407,91 @@ impl WasmLFO {
     #[wasm_bindgen]
     pub fn reset(&mut self) {
         self.lfo.reset();
+    }
+}
+
+/// ADSR envelope generator for synthesizer voices
+#[wasm_bindgen]
+pub struct WasmAdsr {
+    adsr: Adsr,
+}
+
+#[wasm_bindgen]
+impl WasmAdsr {
+    /// Create a new ADSR envelope with the specified sample rate
+    #[wasm_bindgen(constructor)]
+    pub fn new(sample_rate: f32) -> WasmAdsr {
+        WasmAdsr {
+            adsr: Adsr::new(sample_rate),
+        }
+    }
+
+    /// Set all ADSR parameters at once (attack, decay, sustain level, release in seconds)
+    #[wasm_bindgen]
+    pub fn set_times(&mut self, attack: f32, decay: f32, sustain: f32, release: f32) {
+        self.adsr.set_times(attack, decay, sustain, release);
+    }
+
+    /// Set attack time in seconds
+    #[wasm_bindgen]
+    pub fn set_attack(&mut self, attack: f32) {
+        self.adsr.set_attack(attack);
+    }
+
+    /// Set decay time in seconds
+    #[wasm_bindgen]
+    pub fn set_decay(&mut self, decay: f32) {
+        self.adsr.set_decay(decay);
+    }
+
+    /// Set sustain level (0.0 to 1.0)
+    #[wasm_bindgen]
+    pub fn set_sustain(&mut self, sustain: f32) {
+        self.adsr.set_sustain(sustain);
+    }
+
+    /// Set release time in seconds
+    #[wasm_bindgen]
+    pub fn set_release(&mut self, release: f32) {
+        self.adsr.set_release(release);
+    }
+
+    /// Set gate (true = note on, false = note off)
+    #[wasm_bindgen]
+    pub fn gate(&mut self, gate: bool) {
+        self.adsr.gate(gate);
+    }
+
+    /// Process and return the next envelope sample
+    #[wasm_bindgen]
+    pub fn next(&mut self) -> f32 {
+        self.adsr.next()
+    }
+
+    /// Get current value without advancing
+    #[wasm_bindgen]
+    pub fn value(&self) -> f32 {
+        self.adsr.value()
+    }
+
+    /// Get current stage (0=Attack, 1=Decay, 2=Sustain, 3=Release, 4=Done)
+    #[wasm_bindgen]
+    pub fn stage(&self) -> u32 {
+        self.adsr.stage()
+    }
+
+    /// Reset the envelope to zero
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.adsr.reset();
+    }
+
+    /// Process a buffer of samples, applying the envelope to each
+    #[wasm_bindgen]
+    pub fn process_buffer(&mut self, input: &[f32], output: &mut [f32]) {
+        for i in 0..input.len().min(output.len()) {
+            output[i] = input[i] * self.adsr.next();
+        }
     }
 }
 
@@ -1185,6 +1272,173 @@ impl WasmTimeStretch {
     #[wasm_bindgen]
     pub fn output_latency(&self) -> usize {
         self.stretcher.output_latency()
+    }
+}
+
+/// Convolver with Impulse Response support for WASM
+#[wasm_bindgen]
+pub struct WasmConvolver {
+    convolver: Convolver<f32>,
+}
+
+#[wasm_bindgen]
+impl WasmConvolver {
+    #[wasm_bindgen(constructor)]
+    pub fn new(ir: &[f32]) -> WasmConvolver {
+        WasmConvolver {
+            convolver: Convolver::new(ir.to_vec()),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn process(&mut self, sample: f32) -> f32 {
+        self.convolver.process(sample)
+    }
+
+    #[wasm_bindgen]
+    pub fn process_block(&mut self, input: &[f32]) -> Vec<f32> {
+        self.convolver.process_block(input)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_ir(&mut self, ir: &[f32]) {
+        self.convolver.set_ir(ir.to_vec());
+    }
+
+    #[wasm_bindgen]
+    pub fn ir_len(&self) -> usize {
+        self.convolver.ir_len()
+    }
+
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.convolver.reset();
+    }
+
+    #[wasm_bindgen]
+    pub fn get_ir(&self) -> Vec<f32> {
+        self.convolver.get_ir().to_vec()
+    }
+}
+
+/// Hilbert Transform for WASM
+#[wasm_bindgen]
+pub struct WasmHilbertTransform {
+    hilbert: HilbertTransform<f32>,
+}
+
+#[wasm_bindgen]
+impl WasmHilbertTransform {
+    #[wasm_bindgen(constructor)]
+    pub fn new(fft_size: usize) -> WasmHilbertTransform {
+        WasmHilbertTransform {
+            hilbert: HilbertTransform::new(fft_size),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn transform(&mut self, signal: &[f32]) -> Vec<f32> {
+        self.hilbert.transform(signal)
+    }
+
+    /// Get analytic signal (returns interleaved real/imaginary pairs)
+    #[wasm_bindgen]
+    pub fn analytic_signal(&mut self, signal: &[f32]) -> Vec<f32> {
+        let analytic = self.hilbert.analytic_signal(signal);
+        let mut result = Vec::with_capacity(analytic.len() * 2);
+        for c in analytic {
+            result.push(c.re);
+            result.push(c.im);
+        }
+        result
+    }
+}
+
+/// Phase Rotator for WASM
+#[wasm_bindgen]
+pub struct WasmPhaseRotator {
+    rotator: PhaseRotator<f32>,
+}
+
+#[wasm_bindgen]
+impl WasmPhaseRotator {
+    #[wasm_bindgen(constructor)]
+    pub fn new(frequency: f32, sample_rate: f32) -> WasmPhaseRotator {
+        WasmPhaseRotator {
+            rotator: PhaseRotator::new(frequency, sample_rate),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn process(&mut self, sample: f32) -> f32 {
+        self.rotator.process(sample)
+    }
+
+    /// Get quadrature output (returns [I, Q] pair)
+    #[wasm_bindgen]
+    pub fn process_quadrature(&mut self, sample: f32) -> Vec<f32> {
+        let (i, q) = self.rotator.process_quadrature(sample);
+        vec![i, q]
+    }
+
+    #[wasm_bindgen]
+    pub fn process_block(&mut self, input: &[f32]) -> Vec<f32> {
+        self.rotator.process_block(input)
+    }
+
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
+        self.rotator.reset();
+    }
+
+    #[wasm_bindgen]
+    pub fn get_phase(&self) -> f32 {
+        self.rotator.get_phase()
+    }
+
+    #[wasm_bindgen]
+    pub fn set_phase(&mut self, phase: f32) {
+        self.rotator.set_phase(phase);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_frequency(&mut self, frequency: f32, sample_rate: f32) {
+        self.rotator.set_frequency(frequency, sample_rate);
+    }
+}
+
+/// Analysis functions for phase rotation
+#[wasm_bindgen]
+pub struct WasmPhaseAnalysis;
+
+#[wasm_bindgen]
+impl WasmPhaseAnalysis {
+    /// Compute instantaneous phase from interleaved complex signal
+    /// Input: [r0, i0, r1, i1, ...]
+    #[wasm_bindgen]
+    pub fn instantaneous_phase(interleaved_complex: &[f32]) -> Vec<f32> {
+        let analytic: Vec<Complex<f32>> = interleaved_complex
+            .chunks(2)
+            .map(|c| Complex::new(c[0], c[1]))
+            .collect();
+        crate::phase_rotation::instantaneous_phase(&analytic)
+    }
+
+    /// Compute instantaneous magnitude from interleaved complex signal
+    /// Input: [r0, i0, r1, i1, ...]
+    #[wasm_bindgen]
+    pub fn instantaneous_magnitude(interleaved_complex: &[f32]) -> Vec<f32> {
+        let analytic: Vec<Complex<f32>> = interleaved_complex
+            .chunks(2)
+            .map(|c| Complex::new(c[0], c[1]))
+            .collect();
+        crate::phase_rotation::instantaneous_magnitude(&analytic)
+    }
+
+    /// Compute instantaneous frequency from phase
+    #[wasm_bindgen]
+    pub fn instantaneous_frequency(phase: &[f32], sample_rate: f32) -> Vec<f32> {
+        crate::phase_rotation::instantaneous_frequency(phase, sample_rate)
     }
 }
 

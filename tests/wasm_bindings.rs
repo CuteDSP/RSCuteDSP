@@ -310,6 +310,288 @@ mod wasm_tests {
         assert!(processed_samples == total_samples);
         assert!(max_output > 0.1); // Should have processed signal
     }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_creation() {
+        // Test basic ADSR creation in WASM context
+        let adsr = WasmAdsr::new(44100.0);
+        
+        // Initial state should be at zero
+        assert_eq!(adsr.value(), 0.0);
+        assert_eq!(adsr.stage(), 3); // Release/Done state
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_gate_control() {
+        let mut adsr = WasmAdsr::new(44100.0);
+        adsr.set_times(0.01, 0.1, 0.7, 0.2);
+        
+        // Initial value should be zero
+        assert_eq!(adsr.value(), 0.0);
+        
+        // Gate on should start attack
+        adsr.gate(true);
+        
+        // Generate a few samples - should be attacking (increasing)
+        let val1 = adsr.next();
+        let val2 = adsr.next();
+        let val3 = adsr.next();
+        
+        assert!(val1 > 0.0, "First sample should be positive");
+        assert!(val2 > val1, "Should be increasing during attack");
+        assert!(val3 > val2, "Should continue increasing");
+        
+        // Stage should be Attack (0)
+        assert_eq!(adsr.stage(), 0);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_full_cycle() {
+        let mut adsr = WasmAdsr::new(44100.0);
+        
+        // Fast envelope for quick testing
+        adsr.set_times(0.001, 0.001, 0.5, 0.001);
+        
+        // Trigger gate on
+        adsr.gate(true);
+        
+        // Process through attack and decay to sustain
+        for _ in 0..200 {
+            adsr.next();
+        }
+        
+        // Should be in sustain phase (stage 2)
+        let sustain_value = adsr.value();
+        assert!(sustain_value > 0.4 && sustain_value < 0.6, 
+                "Should be near sustain level 0.5, got {}", sustain_value);
+        assert_eq!(adsr.stage(), 2, "Should be in sustain stage");
+        
+        // Gate off to start release
+        adsr.gate(false);
+        assert_eq!(adsr.stage(), 3, "Should transition to release");
+        
+        // Process through release
+        for _ in 0..200 {
+            adsr.next();
+        }
+        
+        // Should be near zero
+        let final_value = adsr.value();
+        assert!(final_value < 0.01, "Should be near zero after release, got {}", final_value);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_parameter_updates() {
+        let mut adsr = WasmAdsr::new(44100.0);
+        
+        // Test individual parameter setters
+        adsr.set_attack(0.05);
+        adsr.set_decay(0.15);
+        adsr.set_sustain(0.6);
+        adsr.set_release(0.25);
+        
+        // Trigger and verify it works with new parameters
+        adsr.gate(true);
+        
+        for _ in 0..100 {
+            let val = adsr.next();
+            assert!(val >= 0.0 && val <= 1.0, "Value should be in range [0,1]");
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_buffer_processing() {
+        let mut adsr = WasmAdsr::new(44100.0);
+        adsr.set_times(0.01, 0.05, 0.7, 0.1);
+        
+        // Create test buffers
+        let buffer_size = 128; // Typical WebAudio block size
+        let input = vec![1.0; buffer_size];
+        let mut output = vec![0.0; buffer_size];
+        
+        // Gate on
+        adsr.gate(true);
+        
+        // Process buffer
+        adsr.process_buffer(&input, &mut output);
+        
+        // Verify output is modulated
+        assert!(output[0] > 0.0, "First sample should be positive");
+        assert!(output.iter().all(|&x| x >= 0.0 && x <= 1.0), 
+                "All samples should be in range [0,1]");
+        
+        // During attack, later samples should generally be larger
+        let first_half_avg: f32 = output[..64].iter().sum::<f32>() / 64.0;
+        let second_half_avg: f32 = output[64..].iter().sum::<f32>() / 64.0;
+        assert!(second_half_avg >= first_half_avg * 0.9, 
+                "Envelope should be increasing during attack");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_reset() {
+        let mut adsr = WasmAdsr::new(44100.0);
+        adsr.set_times(0.01, 0.1, 0.7, 0.2);
+        
+        // Generate some samples
+        adsr.gate(true);
+        for _ in 0..100 {
+            adsr.next();
+        }
+        
+        let value_before_reset = adsr.value();
+        assert!(value_before_reset > 0.0, "Should have non-zero value");
+        
+        // Reset
+        adsr.reset();
+        
+        // Should be back to zero
+        assert_eq!(adsr.value(), 0.0, "Should be zero after reset");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_real_time_audio_simulation() {
+        // Simulate real-time audio processing in a browser context
+        let mut adsr = WasmAdsr::new(48000.0);
+        adsr.set_times(0.02, 0.1, 0.6, 0.3);
+        
+        let block_size = 128; // WebAudio block size
+        let mut total_blocks = 0;
+        let mut peak_value = 0.0f32;
+        
+        // Simulate note on
+        adsr.gate(true);
+        
+        // Process 50 blocks (~133ms at 48kHz)
+        for _ in 0..50 {
+            for _ in 0..block_size {
+                let sample = adsr.next();
+                peak_value = peak_value.max(sample);
+                assert!(sample >= 0.0 && sample <= 1.0, 
+                        "Sample out of range: {}", sample);
+            }
+            total_blocks += 1;
+        }
+        
+        // Should have reached a significant level
+        assert!(peak_value > 0.5, "Peak should be > 0.5, got {}", peak_value);
+        
+        // Simulate note off
+        adsr.gate(false);
+        
+        // Process release phase
+        for _ in 0..30 {
+            for _ in 0..block_size {
+                let sample = adsr.next();
+                assert!(sample >= 0.0 && sample <= 1.0);
+            }
+            total_blocks += 1;
+        }
+        
+        // Should be approaching zero
+        let final_value = adsr.value();
+        assert!(final_value < 0.3, 
+                "Should be decreasing during release, got {}", final_value);
+        
+        assert_eq!(total_blocks, 80);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_multiple_notes() {
+        // Test triggering multiple notes (retrigger behavior)
+        let mut adsr = WasmAdsr::new(44100.0);
+        adsr.set_times(0.01, 0.05, 0.7, 0.1);
+        
+        // First note
+        adsr.gate(true);
+        for _ in 0..500 {
+            adsr.next();
+        }
+        
+        let value_at_sustain = adsr.value();
+        assert!(value_at_sustain > 0.6 && value_at_sustain < 0.8);
+        
+        // Release first note
+        adsr.gate(false);
+        for _ in 0..200 {
+            adsr.next();
+        }
+        
+        let value_during_release = adsr.value();
+        assert!(value_during_release < value_at_sustain);
+        
+        // Trigger second note (retrigger from release phase)
+        adsr.gate(true);
+        let _value_after_retrigger = adsr.next();
+        
+        // Should start attacking again
+        assert_eq!(adsr.stage(), 0, "Should be in attack stage");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_extreme_parameters() {
+        let mut adsr = WasmAdsr::new(44100.0);
+        
+        // Test very fast envelope (1ms all stages)
+        adsr.set_times(0.001, 0.001, 0.5, 0.001);
+        adsr.gate(true);
+        
+        for _ in 0..100 {
+            let val = adsr.next();
+            assert!(val.is_finite(), "Value should be finite");
+            assert!(val >= 0.0 && val <= 1.0, "Value should be in range");
+        }
+        
+        // Test very slow envelope (1 second stages)
+        adsr.reset();
+        adsr.set_times(1.0, 1.0, 0.8, 1.0);
+        adsr.gate(true);
+        
+        for _ in 0..1000 {
+            let val = adsr.next();
+            assert!(val.is_finite(), "Value should be finite");
+            assert!(val >= 0.0 && val <= 1.0, "Value should be in range");
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn test_wasm_adsr_with_audioworklet_pattern() {
+        // Simulate typical AudioWorklet pattern: process method called repeatedly
+        let mut adsr = WasmAdsr::new(44100.0);
+        adsr.set_times(0.02, 0.08, 0.7, 0.15);
+        
+        let block_size = 128;
+        let mut output_blocks = Vec::new();
+        
+        // Simulate note on
+        adsr.gate(true);
+        
+        // Process multiple blocks (simulate AudioWorklet process() calls)
+        for block_num in 0..10 {
+            let mut block = vec![0.0; block_size];
+            
+            // Generate envelope for this block
+            for i in 0..block_size {
+                block[i] = adsr.next();
+            }
+            
+            output_blocks.push(block);
+            
+            // Check that block is valid
+            assert!(output_blocks[block_num].iter().all(|&x| x >= 0.0 && x <= 1.0));
+        }
+        
+        // Trigger note off
+        adsr.gate(false);
+        
+        // Process release blocks
+        for _block_num in 0..5 {
+            let mut block = vec![0.0; block_size];
+            for i in 0..block_size {
+                block[i] = adsr.next();
+            }
+            assert!(block.iter().all(|&x| x >= 0.0 && x <= 1.0));
+        }
+    }
 }
 
 

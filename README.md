@@ -12,7 +12,7 @@ A Rust port of the Signalsmith DSP C++ library, providing various DSP (Digital S
 - **Delay Lines**: Efficient delay line implementation with multiple interpolation methods (nearest, linear, cubic)
 - **Curves**: Cubic curve interpolation with control over slope and curvature
 - **Windows**: Window functions for spectral processing (Hann, Hamming, Kaiser, Blackman-Harris, etc.)
-- **Envelopes**: LFOs and envelope generators with precise control and minimal aliasing
+- **Envelopes**: LFOs, envelope generators, and **ADSR** envelope with gate control for synthesizer voices
 - **Spectral Processing**: Tools for spectral manipulation, phase vocoding, and frequency-domain operations
 - **Time Stretching**: High-quality time stretching and pitch shifting using phase vocoder techniques
 - **STFT**: Short-time Fourier transform implementation with overlap-add processing
@@ -294,6 +294,39 @@ fn mixing_example() {
 }
 ```
 
+### ADSR Envelope Example
+
+```rust
+use cute_dsp::envelopes::Adsr;
+
+fn adsr_example() {
+    // Create ADSR with 44.1kHz sample rate
+    let mut adsr = Adsr::new(44100.0);
+    
+    // Set parameters: attack, decay, sustain, release (in seconds)
+    adsr.set_times(0.01, 0.1, 0.7, 0.2);
+    
+    // Note on (start attack)
+    adsr.gate(true);
+    
+    // Generate envelope samples
+    for _ in 0..44100 {
+        let envelope_value = adsr.next();
+        // Use envelope_value to modulate audio signal
+    }
+    
+    // Note off (start release)
+    adsr.gate(false);
+    
+    // Continue generating samples during release
+    for _ in 0..8820 {
+        let envelope_value = adsr.next();
+    }
+}
+```
+
+For WebAssembly usage, see [ADSR_WASM.md](ADSR_WASM.md) for complete browser integration examples.
+
 ### Spacing (Room Reverb) Example
 
 ```rust
@@ -328,6 +361,7 @@ For more advanced usage examples, see the examples directory:
 - [Stretch Example](examples/stretch_example.rs) - Time stretching and pitch shifting
 - [Curves Example](examples/curves_example.rs) - Curve interpolation
 - [Envelopes Example](examples/envelopes_example.rs) - LFOs and envelope generators
+- [ADSR Example](examples/adsr_example.rs) - ADSR envelope for synthesizers
 - [Linear Example](examples/linear_example.rs) - Linear operations
 - [Mix Example](examples/mix_example.rs) - Audio mixing utilities
 - [Performance Example](examples/perf_example.rs) - Performance optimizations
@@ -418,6 +452,37 @@ Provides a customizable room reverb effect:
 
 - `std` (default): Use the Rust standard library
 - `alloc`: Enable allocation without std (for no_std environments)
+- `wasm`: Enable WebAssembly bindings
+
+## Testing
+
+### Native Tests
+
+Run the standard test suite:
+
+```bash
+cargo test
+```
+
+### WebAssembly Tests
+
+The project includes comprehensive WASM tests using `wasm-bindgen-test`:
+
+**Node.js Tests (recommended):**
+```bash
+# Build for Node.js
+wasm-pack build --target nodejs --out-dir pkg --dev -- --features wasm
+
+# Run tests
+node test-adsr-wasm.js
+```
+
+**Browser Tests:**
+```bash
+wasm-pack test --headless --chrome --features wasm
+```
+
+See [ADSR_WASM_TESTING.md](ADSR_WASM_TESTING.md) for complete testing documentation.
 
 ## Performance
 

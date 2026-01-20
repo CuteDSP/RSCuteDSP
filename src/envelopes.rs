@@ -15,6 +15,205 @@ use alloc::vec::Vec;
 
 use num_traits::Float;
 
+/// ADSR (Attack, Decay, Sustain, Release) envelope generator.
+///
+/// This is a classic four-stage envelope commonly used in synthesizers and audio processing.
+/// It generates values from 0 to 1 based on the gate signal and time parameters.
+///
+/// # Stages
+///
+/// - **Attack**: Ramps from 0 to 1 over the attack time
+/// - **Decay**: Ramps from 1 to sustain level over the decay time
+/// - **Sustain**: Holds at a constant level while the gate is open
+/// - **Release**: Ramps from current level to 0 after the gate closes
+///
+/// # Example
+///
+/// ```ignore
+/// let mut adsr = Adsr::new(44100.0); // 44.1kHz sample rate
+/// adsr.set_times(0.01, 0.1, 0.5, 0.2); // Attack, Decay, Sustain level, Release
+///
+/// // Note on
+/// adsr.gate(true);
+/// for _ in 0..44100 {
+///     let sample = adsr.next();
+/// }
+///
+/// // Note off
+/// adsr.gate(false);
+/// for _ in 0..8820 {
+///     let sample = adsr.next();
+/// }
+/// ```
+#[derive(Clone, Debug)]
+pub struct Adsr {
+    // Time parameters (in seconds)
+    attack_time: f32,
+    decay_time: f32,
+    sustain_level: f32,
+    release_time: f32,
+    
+    // State
+    value: f32,
+    gate: bool,
+    stage: AdsrStage,
+    
+    // Increments per sample
+    sample_rate: f32,
+    attack_increment: f32,
+    decay_increment: f32,
+    release_increment: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum AdsrStage {
+    Attack,
+    Decay,
+    Sustain,
+    Release,
+    Done,
+}
+
+impl Adsr {
+    /// Create a new ADSR envelope with the specified sample rate (in Hz)
+    pub fn new(sample_rate: f32) -> Self {
+        let mut adsr = Self {
+            attack_time: 0.01,
+            decay_time: 0.1,
+            sustain_level: 0.7,
+            release_time: 0.2,
+            value: 0.0,
+            gate: false,
+            stage: AdsrStage::Release,
+            sample_rate,
+            attack_increment: 1.0 / (0.01 * sample_rate),
+            decay_increment: (0.7 - 1.0) / (0.1 * sample_rate),
+            release_increment: -0.7 / (0.2 * sample_rate),
+        };
+        adsr.reset();
+        adsr
+    }
+    
+    /// Set all ADSR time parameters (in seconds)
+    ///
+    /// # Arguments
+    ///
+    /// * `attack` - Time to ramp from 0 to 1 (seconds)
+    /// * `decay` - Time to ramp from 1 to sustain level (seconds)
+    /// * `sustain` - Level to hold at (0.0 to 1.0)
+    /// * `release` - Time to ramp from sustain to 0 (seconds)
+    pub fn set_times(&mut self, attack: f32, decay: f32, sustain: f32, release: f32) {
+        self.attack_time = attack.max(0.0001); // Prevent division by zero
+        self.decay_time = decay.max(0.0001);
+        self.sustain_level = sustain.clamp(0.0, 1.0);
+        self.release_time = release.max(0.0001);
+        
+        // Recalculate increments
+        self.attack_increment = 1.0 / (self.attack_time * self.sample_rate);
+        self.decay_increment = (self.sustain_level - 1.0) / (self.decay_time * self.sample_rate);
+        self.release_increment = -self.sustain_level / (self.release_time * self.sample_rate);
+    }
+    
+    /// Set just the attack time (in seconds)
+    pub fn set_attack(&mut self, attack: f32) {
+        self.attack_time = attack.max(0.0001);
+        self.attack_increment = 1.0 / (self.attack_time * self.sample_rate);
+    }
+    
+    /// Set just the decay time (in seconds)
+    pub fn set_decay(&mut self, decay: f32) {
+        self.decay_time = decay.max(0.0001);
+        self.decay_increment = (self.sustain_level - 1.0) / (self.decay_time * self.sample_rate);
+    }
+    
+    /// Set just the sustain level (0.0 to 1.0)
+    pub fn set_sustain(&mut self, sustain: f32) {
+        self.sustain_level = sustain.clamp(0.0, 1.0);
+        self.decay_increment = (self.sustain_level - 1.0) / (self.decay_time * self.sample_rate);
+        self.release_increment = -self.sustain_level / (self.release_time * self.sample_rate);
+    }
+    
+    /// Set just the release time (in seconds)
+    pub fn set_release(&mut self, release: f32) {
+        self.release_time = release.max(0.0001);
+        self.release_increment = -self.sustain_level / (self.release_time * self.sample_rate);
+    }
+    
+    /// Set the gate signal (true = note on, false = note off)
+    pub fn gate(&mut self, gate: bool) {
+        if gate && !self.gate {
+            // Gate opened - start attack from current value
+            self.stage = AdsrStage::Attack;
+        } else if !gate && self.gate {
+            // Gate closed - start release from current value
+            self.stage = AdsrStage::Release;
+        }
+        self.gate = gate;
+    }
+    
+    /// Get the current value without advancing
+    pub fn value(&self) -> f32 {
+        self.value
+    }
+    
+    /// Get the current ADSR stage
+    pub fn stage(&self) -> u32 {
+        match self.stage {
+            AdsrStage::Attack => 0,
+            AdsrStage::Decay => 1,
+            AdsrStage::Sustain => 2,
+            AdsrStage::Release => 3,
+            AdsrStage::Done => 4,
+        }
+    }
+    
+    /// Reset the envelope to zero
+    pub fn reset(&mut self) {
+        self.value = 0.0;
+        self.stage = if self.gate { AdsrStage::Attack } else { AdsrStage::Release };
+    }
+    
+    /// Process and return the next envelope sample
+    pub fn next(&mut self) -> f32 {
+        match self.stage {
+            AdsrStage::Attack => {
+                self.value += self.attack_increment;
+                if self.value >= 1.0 {
+                    self.value = 1.0;
+                    self.stage = AdsrStage::Decay;
+                }
+            }
+            AdsrStage::Decay => {
+                self.value += self.decay_increment;
+                if self.value <= self.sustain_level {
+                    self.value = self.sustain_level;
+                    self.stage = AdsrStage::Sustain;
+                }
+            }
+            AdsrStage::Sustain => {
+                self.value = self.sustain_level;
+                if !self.gate {
+                    self.stage = AdsrStage::Release;
+                }
+            }
+            AdsrStage::Release => {
+                self.value += self.release_increment;
+                if self.value <= 0.0 {
+                    self.value = 0.0;
+                    self.stage = AdsrStage::Done;
+                }
+            }
+            AdsrStage::Done => {
+                self.value = 0.0;
+                if self.gate {
+                    self.stage = AdsrStage::Attack;
+                }
+            }
+        }
+        self.value
+    }
+}
+
 /// An LFO based on cubic segments.
 ///
 /// You can randomize the rate and/or the depth. Randomizing the depth past `0.5` means
@@ -866,5 +1065,84 @@ mod tests {
         assert!((output[7] - 0.20).abs() < 1e-5);
         assert!((output[8] - 0.15).abs() < 1e-5);
         assert!((output[9] - 0.10).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_adsr_basic() {
+        let sample_rate = 44100.0;
+        let mut adsr = Adsr::new(sample_rate);
+        
+        // Set times: 0.01s attack, 0.1s decay, 0.7 sustain, 0.2s release
+        adsr.set_times(0.01, 0.1, 0.7, 0.2);
+        
+        // Note on
+        adsr.gate(true);
+        
+        // Attack phase: should reach ~1.0
+        let attack_samples = (0.01 * sample_rate) as usize;
+        for _ in 0..attack_samples {
+            adsr.next();
+        }
+        assert!(adsr.value() >= 0.99);
+        
+        // Decay phase: should reach sustain level (~0.7)
+        let decay_samples = (0.1 * sample_rate) as usize;
+        for _ in 0..decay_samples {
+            adsr.next();
+        }
+        assert!((adsr.value() - 0.7).abs() < 0.01);
+        
+        // Note off
+        adsr.gate(false);
+        
+        // Release phase: should reach ~0.0
+        let release_samples = (0.2 * sample_rate) as usize;
+        for _ in 0..release_samples {
+            adsr.next();
+        }
+        assert!(adsr.value() <= 0.01);
+    }
+
+    #[test]
+    fn test_adsr_sustain_level() {
+        let sample_rate = 44100.0;
+        let mut adsr = Adsr::new(sample_rate);
+        
+        adsr.set_times(0.001, 0.001, 0.5, 0.001);
+        adsr.gate(true);
+        
+        // Skip to sustain phase
+        for _ in 0..100 {
+            adsr.next();
+        }
+        
+        // Should hold at sustain level
+        let sustain_val = adsr.next();
+        assert!((sustain_val - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_adsr_gate_control() {
+        let sample_rate = 44100.0;
+        let mut adsr = Adsr::new(sample_rate);
+        
+        adsr.set_times(0.01, 0.01, 0.7, 0.01);
+        
+        // Initial state should be at zero
+        assert_eq!(adsr.value(), 0.0);
+        
+        // Gate on
+        adsr.gate(true);
+        let val1 = adsr.next();
+        assert!(val1 > 0.0, "Should be attacking");
+        
+        // Gate off should start release
+        adsr.gate(false);
+        // Skip through to release phase
+        for _ in 0..1000 {
+            adsr.next();
+        }
+        let val2 = adsr.next();
+        assert!(val2 >= 0.0 && val2 <= 1.0, "Value should be in range during release");
     }
 }

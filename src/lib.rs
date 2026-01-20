@@ -40,6 +40,8 @@ pub mod delay;
 pub mod fft;
 pub mod filters;
 pub mod stretch;
+pub mod convolver;
+pub mod phase_rotation;
 
 pub mod spacing;
 
