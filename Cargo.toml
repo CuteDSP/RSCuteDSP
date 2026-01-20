@@ -1,6 +1,6 @@
 [package]
 name = "cute-dsp"
-version = "0.0.4"
+version = "0.0.40"
 edition = "2021"
 authors = ["CuteDSP Team", "LogicCuteGuy"]
 description = "A Rust library for audio and signal processing"
