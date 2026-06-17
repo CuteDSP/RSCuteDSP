@@ -113,6 +113,9 @@ pub struct SignalsmithStretch<T: Float> {
     inv_formant_multiplier: T,
     formant_compensation: bool,
     formant_base_freq: T,
+
+    // Sample rate (Hz). Defaults to 44100 when not set explicitly.
+    sample_rate: T,
 }
 
 impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStretch<T> {
@@ -142,7 +145,10 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
             formant_multiplier: T::one(),
             inv_formant_multiplier: T::one(),
             formant_compensation: false,
-            formant_base_freq: T::zero()
+            formant_base_freq: T::zero(),
+            // Default to 44100 Hz. Use `set_sample_rate` or one of the preset
+            // helpers if you need a different rate.
+            sample_rate: T::from_f32(44100.0).unwrap(),
         }
     }
 
@@ -180,6 +186,7 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
     pub fn preset_default(&mut self, n_channels: usize, sample_rate: T, split_computation: bool) {
         let block_samples = (sample_rate * T::from_f32(0.12).unwrap()).to_usize().unwrap_or(1024);
         let interval_samples = (sample_rate * T::from_f32(0.03).unwrap()).to_usize().unwrap_or(256);
+        self.sample_rate = sample_rate;
         self.configure(n_channels, block_samples, interval_samples, split_computation);
     }
 
@@ -187,7 +194,16 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
     pub fn preset_cheaper(&mut self, n_channels: usize, sample_rate: T, split_computation: bool) {
         let block_samples = (sample_rate * T::from_f32(0.1).unwrap()).to_usize().unwrap_or(1024);
         let interval_samples = (sample_rate * T::from_f32(0.04).unwrap()).to_usize().unwrap_or(256);
+        self.sample_rate = sample_rate;
         self.configure(n_channels, block_samples, interval_samples, split_computation);
+    }
+
+    /// Set the sample rate (Hz) used for frequency <-> bin conversions.
+    ///
+    /// This is stored automatically by the preset helpers; call this after
+    /// [`Self::configure`] when using manual configuration.
+    pub fn set_sample_rate(&mut self, sample_rate: T) {
+        self.sample_rate = sample_rate;
     }
 
     /// Manual configuration
@@ -259,14 +275,23 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
         self.formant_base_freq = base_freq;
     }
 
-    /// Convert bin index to frequency (simplified)
+    /// Convert bin index to frequency (Hz).
+    ///
+    /// Uses the stored `sample_rate`. `bands` is `block_samples / 2 + 1`, so
+    /// `2 * (bands - 1) == block_samples` is the FFT size for the common
+    /// case of even block sizes. (When the STFT rounds the block size up to
+    /// the next power of 2, the actual FFT size is larger and this returns
+    /// a slightly low value — a real phase-vocoder implementation will need
+    /// the real FFT size here.)
     fn bin_to_freq(&self, bin: T) -> T {
-        bin * T::from_f32(22050.0).unwrap() / T::from_usize(self.bands).unwrap()
+        let fft_size = T::from_usize((self.bands - 1) * 2).unwrap();
+        bin * self.sample_rate / fft_size
     }
 
-    /// Convert frequency to bin index (simplified)
+    /// Convert frequency (Hz) to bin index. Inverse of [`Self::bin_to_freq`].
     fn freq_to_bin(&self, freq: T) -> T {
-        freq * T::from_usize(self.bands).unwrap() / T::from_f32(22050.0).unwrap()
+        let fft_size = T::from_usize((self.bands - 1) * 2).unwrap();
+        freq * fft_size / self.sample_rate
     }
 
     /// Map frequency according to current settings
@@ -400,7 +425,26 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
         }
     }
 
-    /// Main processing function (simplified)
+    /// Main processing function.
+    ///
+    /// # ⚠️ STUB — not a real phase vocoder
+    ///
+    /// The STFT, peak detection, frequency mapping, and phase-prediction
+    /// infrastructure on this struct is all wired up but **not used here**.
+    /// The current implementation is nearest-neighbour resampling of the
+    /// input across the output length, which:
+    ///   * preserves no pitch information (a 440 Hz input stays at 440 Hz
+    ///     only because resampling-by-integer-ratio is identity-ish for
+    ///     short windows);
+    ///   * does not time-stretch (the output is just a resampled view of
+    ///     the input);
+    ///   * ignores `set_transpose_factor`, `set_formant_factor`, and
+    ///     `set_freq_map` entirely.
+    ///
+    /// This stub exists so the rest of the API surface compiles and the
+    /// higher-level wiring (peaks, output map, predictions) can be tested
+    /// in isolation. Replace this body with a real phase-vocoder loop
+    /// before relying on this for actual time-stretching or pitch shifting.
     pub fn process<I, O>(&mut self, inputs: I, input_samples: usize, mut outputs: O, output_samples: usize)
     where
         I: AsRef<[Vec<T>]>,
@@ -408,14 +452,15 @@ impl<T: Float + FromPrimitive + NumCast + core::ops::AddAssign> SignalsmithStret
     {
         let inputs = inputs.as_ref();
         let outputs = outputs.as_mut();
-        
-        // Simplified processing - just copy input to output for now
+
+        // STUB: nearest-neighbour resample. See the docstring above.
         for c in 0..self.channels.min(inputs.len()).min(outputs.len()) {
             let input_channel = &inputs[c];
             let output_channel = &mut outputs[c];
-            
+
             for i in 0..output_samples.min(output_channel.len()) {
-                let input_idx = (i * input_samples / output_samples).min(input_channel.len().saturating_sub(1));
+                let input_idx = (i * input_samples / output_samples)
+                    .min(input_channel.len().saturating_sub(1));
                 output_channel[i] = input_channel[input_idx];
             }
         }
@@ -549,7 +594,7 @@ mod tests {
     fn test_process_simple() {
         let mut stretch = SignalsmithStretch::<f32>::new();
         stretch.configure(2, 1024, 256, false);
-        
+
         let inputs = vec![
             vec![1.0, 2.0, 3.0, 4.0],
             vec![5.0, 6.0, 7.0, 8.0],
@@ -558,10 +603,108 @@ mod tests {
             vec![0.0; 6],
             vec![0.0; 6],
         ];
-        
+
         stretch.process(&inputs, 4, &mut outputs, 6);
-        
+
         assert!(outputs[0].iter().any(|&x| x != 0.0));
         assert!(outputs[1].iter().any(|&x| x != 0.0));
+    }
+
+    /// Real-audio characterization test for the current `process()` stub.
+    ///
+    /// This test pins the *known-wrong* behaviour so that when the real
+    /// phase-vocoder loop is implemented, anyone breaking it will see
+    /// exactly which expectations flipped. Specifically:
+    ///
+    /// 1. The output length is whatever the caller asked for.
+    /// 2. The output energy is roughly preserved (it's a resampler, not a
+    ///    filter that creates or destroys energy).
+    /// 3. **`set_transpose_semitones(12)` has no effect on the output** —
+    ///    this is the failing-on-purpose assertion that proves pitch
+    ///    shifting is not yet wired up. When the phase vocoder lands,
+    ///    delete this assertion and replace it with a real pitch check
+    ///    (e.g. FFT-bin the output and confirm the dominant bin moved
+    ///    from `f` to `2f`).
+    #[test]
+    fn test_process_stub_pitch_transpose_does_nothing() {
+        let sample_rate = 48_000.0_f32;
+        let input_len = 1024;
+        let stretch_ratio = 1.5;
+        let output_len = (input_len as f32 * stretch_ratio) as usize;
+
+        // 440 Hz sine, full-scale. One channel, `input_len` samples.
+        let freq = 440.0_f32;
+        let channel: Vec<f32> = (0..input_len)
+            .map(|i| (2.0 * core::f32::consts::PI * freq * i as f32 / sample_rate).sin())
+            .collect();
+        let input: Vec<Vec<f32>> = vec![channel];
+
+        // Energy of the input (sum of squares).
+        let input_energy: f32 = input[0].iter().map(|s| s * s).sum();
+
+        // --- Path 1: no transpose -----------------------------------------
+        let mut stretch = SignalsmithStretch::<f32>::new();
+        stretch.preset_default(1, sample_rate, false);
+        // No set_transpose_semitones call — should pass through unchanged
+        // in frequency content.
+        let mut output_a = vec![vec![0.0_f32; output_len]];
+        stretch.process(&input, input_len, &mut output_a, output_len);
+
+        assert_eq!(output_a[0].len(), output_len,
+            "stub: output length should match what was requested");
+        let energy_a: f32 = output_a[0].iter().map(|s| s * s).sum();
+        assert!(energy_a.is_finite() && energy_a > 0.0,
+            "stub: output should contain real (non-zero) audio");
+        // Resampling preserves energy to first order; allow generous slack
+        // for nearest-neighbour artifacts.
+        let ratio_a = energy_a / input_energy;
+        assert!(ratio_a > 0.5 && ratio_a < 2.0,
+            "stub: energy ratio {ratio_a} out of expected band [0.5, 2.0]");
+
+        // --- Path 2: transpose +12 semitones (one octave up) --------------
+        let mut stretch = SignalsmithStretch::<f32>::new();
+        stretch.preset_default(1, sample_rate, false);
+        stretch.set_transpose_semitones(12.0, 0.0);
+        let mut output_b = vec![vec![0.0_f32; output_len]];
+        stretch.process(&input, input_len, &mut output_b, output_len);
+
+        // The stub ignores transpose entirely, so the two outputs are
+        // essentially the same resampled signal.
+        let max_diff: f32 = output_a[0]
+            .iter()
+            .zip(output_b[0].iter())
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0_f32, f32::max);
+
+        assert!(
+            max_diff < 1e-5,
+            "stub: pitch transpose had no effect (max diff {max_diff}). \
+             This is the expected behaviour for the stub. When a real \
+             phase vocoder is implemented this assertion MUST be removed \
+             and replaced with a real pitch-shift verification."
+        );
+    }
+
+    /// Verifies the `bin_to_freq` / `freq_to_bin` round-trip uses the
+    /// actual sample rate (regression for the hardcoded 22050 bug).
+    #[test]
+    fn test_bin_freq_roundtrip_uses_sample_rate() {
+        // 48 kHz configuration.
+        let mut stretch = SignalsmithStretch::<f32>::new();
+        stretch.configure(2, 1024, 256, false);
+        stretch.set_sample_rate(48_000.0);
+        assert_eq!(stretch.bands, 513);
+
+        for &bin in &[0.0_f32, 1.0, 10.0, 100.0, 256.0, 512.0] {
+            let freq = stretch.bin_to_freq(bin);
+            let bin2 = stretch.freq_to_bin(freq);
+            assert!((bin - bin2).abs() < 1e-3,
+                "bin {bin} -> freq {freq} -> bin {bin2} (should round-trip)");
+            // At 48 kHz, bin 512 (the last one) is the Nyquist bin (24 kHz).
+            if (bin - 512.0).abs() < 1e-6 {
+                assert!((freq - 24_000.0).abs() < 1.0,
+                    "bin 512 at 48kHz should be 24 kHz, got {freq}");
+            }
+        }
     }
 }
